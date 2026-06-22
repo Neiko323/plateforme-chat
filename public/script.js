@@ -14,179 +14,192 @@ const authSwitchText = document.getElementById('auth-switch-text');
 const form = document.getElementById('form');
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
-const typingIndicator = document.getElementById('typing-indicator');
+const chatHeader = document.getElementById('chat-header');
+const dmsList = document.getElementById('dms-list');
+const globalChannelBtn = document.getElementById('global-channel-btn');
 
-// DOM Éléments Pied de page Gauche
-const footerUserAvatar = document.getElementById('footer-user-avatar');
-const footerUserUsername = document.getElementById('footer-user-username');
+// Mini-Profil
+const miniProfileCard = document.getElementById('mini-profile-card');
+const mpCardAvatar = document.getElementById('mp-card-avatar');
+const mpCardUsername = document.getElementById('mp-card-username');
+const mpCardBio = document.getElementById('mp-card-bio');
+const mpCardActions = document.getElementById('mp-card-actions');
 
-// DOM Éléments Fenêtre Modale Paramètres
+// Paramètres
 const settingsModal = document.getElementById('settings-modal');
 const openSettingsBtn = document.getElementById('open-settings-btn');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
 const saveProfileBtn = document.getElementById('save-profile-btn');
 const logoutBtn = document.getElementById('logout-btn');
-
-// DOM Onglets Modale
-const tabButtons = document.querySelectorAll('.modal-tab-btn');
-const tabContents = document.querySelectorAll('.tab-content');
-const modalTabTitle = document.getElementById('modal-tab-title');
-
-// DOM Formulaire Paramètres
-const editAvatarFile = document.getElementById('edit-avatar-file');
-const editUsernameInput = document.getElementById('edit-username');
-const editBioInput = document.getElementById('edit-bio');
-const editNewPasswordInput = document.getElementById('edit-new-password');
-const editCurrentPasswordInput = document.getElementById('edit-current-password');
+const footerUserAvatar = document.getElementById('footer-user-avatar');
+const footerUserUsername = document.getElementById('footer-user-username');
 
 let isLoginMode = true; 
 let currentUser = null;
-let activeTab = 'tab-profile'; // Permet de savoir quel onglet est ouvert
+let currentChatTarget = { type: 'global', id: null, name: 'général' }; 
+let activeTab = 'tab-profile';
 
-// 🛠️ LOGIQUE DE NAVIGATION DANS LES ONGLETS
-tabButtons.forEach(button => {
-    button.addEventListener('click', () => {
-        // Enlever la classe active de tous les boutons et contenus
-        tabButtons.forEach(btn => btn.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
+// Gestion du contexte de Chat
+globalChannelBtn.addEventListener('click', () => {
+    document.querySelectorAll('.clickable-item').forEach(i => i.classList.remove('active'));
+    globalChannelBtn.classList.add('active');
+    currentChatTarget = { type: 'global', id: null, name: 'général' };
+    chatHeader.textContent = "💬 # général";
+    socket.emit('demande historique', currentChatTarget);
+});
 
-        // Activer l'onglet cliqué
-        button.classList.add('active');
-        activeTab = button.getAttribute('data-target');
-        document.getElementById(activeTab).classList.add('active');
+// Clics pour fermer la carte profil si on clique ailleurs
+document.addEventListener('click', (e) => {
+    if (!miniProfileCard.contains(e.target) && !e.target.classList.contains('avatar-chat') && !e.target.classList.contains('pseudo') && !e.target.closest('#footer-profile-click')) {
+        miniProfileCard.style.display = 'none';
+    }
+});
 
-        // Changer le titre de la modale pour faire propre
-        modalTabTitle.textContent = activeTab === 'tab-profile' ? 'Profil utilisateur' : 'Sécurité du compte';
+// Afficher la carte "Mini Profil" à l'endroit du clic
+function ouvrirMiniProfil(targetUser, mouseEvent) {
+    mpCardAvatar.src = targetUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${targetUser.username}`;
+    mpCardUsername.textContent = targetUser.username;
+    mpCardBio.textContent = targetUser.bio || "Pas de biographie pour le moment.";
+    
+    mpCardActions.innerHTML = '';
+    
+    if (currentUser && targetUser.id !== currentUser.id) {
+        if (targetUser.isFriend) {
+            const mpBtn = document.createElement('button');
+            mpBtn.className = "profile-action-btn btn-primary";
+            mpBtn.textContent = "Message Privé";
+            mpBtn.onclick = () => {
+                ouvrirDiscussionPrivee(targetUser);
+                miniProfileCard.style.display = 'none';
+            };
+            mpCardActions.appendChild(mpBtn);
+        } else if (targetUser.hasSentRequest) {
+            const acceptBtn = document.createElement('button');
+            acceptBtn.className = "profile-action-btn btn-primary";
+            acceptBtn.textContent = "Accepter l'invitation";
+            acceptBtn.onclick = () => {
+                socket.emit('action ami', { action: 'accept', targetId: targetUser.id });
+                miniProfileCard.style.display = 'none';
+            };
+            mpCardActions.appendChild(acceptBtn);
+        } else if (targetUser.hasReceivedRequest) {
+            const pendingBtn = document.createElement('button');
+            pendingBtn.className = "profile-action-btn btn-secondary";
+            pendingBtn.textContent = "Demande en attente...";
+            pendingBtn.disabled = true;
+            mpCardActions.appendChild(pendingBtn);
+        } else {
+            const addBtn = document.createElement('button');
+            addBtn.className = "profile-action-btn btn-primary";
+            addBtn.textContent = "Ajouter en ami";
+            addBtn.onclick = () => {
+                socket.emit('action ami', { action: 'request', targetId: targetUser.id });
+                miniProfileCard.style.display = 'none';
+            };
+            mpCardActions.appendChild(addBtn);
+        }
+    }
+
+    miniProfileCard.style.display = 'block';
+    let top = mouseEvent.clientY;
+    let left = mouseEvent.clientX + 15;
+    if (top + miniProfileCard.offsetHeight > window.innerHeight) {
+        top = window.innerHeight - miniProfileCard.offsetHeight - 15;
+    }
+    if (left + miniProfileCard.offsetWidth > window.innerWidth) {
+        left = mouseEvent.clientX - miniProfileCard.offsetWidth - 15;
+    }
+    miniProfileCard.style.top = `${top}px`;
+    miniProfileCard.style.left = `${left}px`;
+}
+
+function ouvrirDiscussionPrivee(friend) {
+    document.querySelectorAll('.clickable-item').forEach(i => i.classList.remove('active'));
+    let dmItem = document.getElementById(`dm-${friend.id}`);
+    if (dmItem) dmItem.classList.add('active');
+    
+    currentChatTarget = { type: 'dm', id: friend.id, name: friend.username };
+    chatHeader.textContent = `🔒 MP avec @${friend.username}`;
+    socket.emit('demande historique', currentChatTarget);
+}
+
+// Socket Authentifié & Initialisation
+function initialiserSession() {
+    socket.emit('authentification-socket', currentUser.id);
+    rafraichirInterfaceUtilisateur();
+    socket.emit('demande historique', currentChatTarget);
+    socket.emit('demande liste amis');
+}
+
+socket.on('mise a jour amis', (amisData) => {
+    dmsList.innerHTML = '';
+    amisData.forEach(friend => {
+        const li = document.createElement('li');
+        li.className = "clickable-item";
+        li.id = `dm-${friend.id}`;
+        li.innerHTML = `
+            <img class="sidebar-avatar" src="${friend.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${friend.username}`}" alt="">
+            <span>${friend.username}</span>
+        `;
+        li.onclick = () => ouvrirDiscussionPrivee(friend);
+        dmsList.appendChild(li);
     });
 });
 
-function rafraichirInterfaceUtilisateur() {
-    if (!currentUser) return;
-    footerUserUsername.textContent = currentUser.username;
-    footerUserAvatar.src = currentUser.avatar;
-
-    editUsernameInput.value = currentUser.username;
-    editBioInput.value = currentUser.bio || '';
-    editNewPasswordInput.value = '';
-    editCurrentPasswordInput.value = '';
-    editAvatarFile.value = '';
-}
-
-openSettingsBtn.addEventListener('click', () => { settingsModal.style.display = 'flex'; });
-closeSettingsBtn.addEventListener('click', () => { settingsModal.style.display = 'none'; });
-
-// Session au démarrage
-const savedUser = localStorage.getItem('currentUser');
-if (savedUser && savedUser !== "undefined" && savedUser !== "null") {
-    currentUser = JSON.parse(savedUser);
-    authScreen.style.display = 'none';
-    mainApp.style.display = 'block';
-    rafraichirInterfaceUtilisateur();
-    socket.emit('demande historique');
-} else {
-    authScreen.style.display = 'block';
-    mainApp.style.display = 'none';
-}
-
-function lierLienBascule() {
-    const link = document.getElementById('link-to-register') || document.getElementById('link-to-login');
-    if (link) {
-        link.onclick = (e) => {
-            e.preventDefault();
-            isLoginMode = !isLoginMode;
-            if (isLoginMode) {
-                authTitle.textContent = "Ha, te revoilà !";
-                authSubmitBtn.textContent = "Se connecter";
-                authSwitchText.innerHTML = `Besoin d'un compte ? <a id="link-to-register">S'inscrire</a>`;
-            } else {
-                authTitle.textContent = "Créer un compte";
-                authSubmitBtn.textContent = "S'inscrire";
-                authSwitchText.innerHTML = `Tu as déjà un compte ? <a id="link-to-login">Se connecter</a>`;
-            }
-            lierLienBascule();
-        };
-    }
-}
-lierLienBascule();
-
-authSubmitBtn.addEventListener('click', async () => {
-    const username = authUsernameInput.value.trim();
-    const password = authPasswordInput.value;
-    if (!username || !password) return alert("Remplis tous les champs !");
-    const endpoint = isLoginMode ? '/api/login' : '/api/register';
-
-    try {
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        const data = await response.json();
-
-        if (!response.ok) { 
-            alert(data.error); 
-        } else {
-            currentUser = data.user;
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            authScreen.style.display = 'none';
-            mainApp.style.display = 'block';
-            rafraichirInterfaceUtilisateur();
-            socket.emit('demande historique');
+// Écoute de demande de profil ciblé
+messages.addEventListener('click', (e) => {
+    if (e.target.classList.contains('avatar-chat') || e.target.classList.contains('pseudo')) {
+        const uId = e.target.getAttribute('data-uid');
+        if (uId) {
+            socket.emit('demande infos profil', uId);
+            socket.once('reponse infos profil', (userProfile) => {
+                ouvrirMiniProfil(userProfile, e);
+            });
         }
-    } catch (err) { alert("Erreur serveur."); }
+    }
 });
 
-// Enregistrer les modifications selon l'onglet actif
-saveProfileBtn.addEventListener('click', async () => {
-    if (!currentUser) return;
-
-    const formData = new FormData();
-    formData.append('userId', currentUser.id);
-    formData.append('activeTab', activeTab); // 🛠️ On indique au serveur l'onglet utilisé
-
-    if (activeTab === 'tab-profile') {
-        // Envoi pour l'onglet profil (sans MDP)
-        formData.append('bio', editBioInput.value.trim());
-        if (editAvatarFile.files[0]) {
-            formData.append('avatarFile', editAvatarFile.files[0]);
-        }
-    } else if (activeTab === 'tab-account') {
-        // Envoi pour l'onglet compte (avec vérification de sécurité)
-        formData.append('username', editUsernameInput.value.trim());
-        formData.append('currentPassword', editCurrentPasswordInput.value);
-        formData.append('newPassword', editNewPasswordInput.value);
-    }
-
-    try {
-        const response = await fetch('/api/profile/update', {
-            method: 'POST',
-            body: formData
+document.getElementById('footer-profile-click').onclick = (e) => {
+    if(currentUser) {
+        socket.emit('demande infos profil', currentUser.id);
+        socket.once('reponse infos profil', (userProfile) => {
+            ouvrirMiniProfil(userProfile, e);
         });
-        const data = await response.json();
+    }
+};
 
-        if (response.ok) {
-            currentUser = data.user;
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            rafraichirInterfaceUtilisateur();
-            settingsModal.style.display = 'none'; 
-            alert("Modifications enregistrées !");
-            socket.emit('demande historique');
-        } else {
-            alert(data.error);
-        }
-    } catch (err) { alert("Erreur lors de la modification."); }
+// Envoi d'un message
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const texte = input.value.trim();
+    if (texte && currentUser) {
+        socket.emit('chat message', {
+            senderId: currentUser.id,
+            target: currentChatTarget,
+            texte: texte
+        });
+        input.value = '';
+    }
 });
 
-logoutBtn.addEventListener('click', () => { localStorage.clear(); location.reload(); });
+socket.on('chat message', (data) => {
+    if ((currentChatTarget.type === 'global' && data.isGlobal) || 
+        (currentChatTarget.type === 'dm' && !data.isGlobal && (data.senderId === currentChatTarget.id || data.receiverId === currentChatTarget.id))) {
+        ajouterMessageEcran(data);
+    }
+});
 
-// --- LOGIQUE CHAT ---
+socket.on('chargement historique', (messagesHistorique) => {
+    messages.innerHTML = '';
+    messagesHistorique.forEach(data => ajouterMessageEcran(data));
+});
+
 function ajouterMessageEcran(data) {
     const item = document.createElement('li');
-    const avatar = data.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.pseudo}`;
     item.innerHTML = `
-        <img class="avatar-chat" src="${avatar}" alt="pdp">
+        <img class="avatar-chat" data-uid="${data.senderId}" src="${data.avatar}" alt="">
         <div class="msg-content">
-            <span class="pseudo">${data.pseudo}</span>
+            <span class="pseudo" data-uid="${data.senderId}">${data.pseudo}</span>
             <span class="texte-message">${data.texte}</span>
         </div>
     `;
@@ -194,39 +207,115 @@ function ajouterMessageEcran(data) {
     messages.scrollTop = messages.scrollHeight;
 }
 
-form.addEventListener('submit', (e) => {
-    e.preventDefault(); 
-    const messageTexte = input.value.trim();
+// 🛠️ LOGIQUE DE BASCULE INSCRIPTION / CONNEXION (CORRIGÉE)
+function lierLienBascule() {
+    const linkToRegister = document.getElementById('link-to-register');
+    const linkToLogin = document.getElementById('link-to-login');
+
+    if (linkToRegister) {
+        linkToRegister.onclick = (e) => {
+            e.preventDefault();
+            isLoginMode = false;
+            authTitle.textContent = "Créer un compte";
+            authSubtitle.textContent = "Inscris-toi pour commencer à discuter !";
+            authSubmitBtn.textContent = "S'inscrire";
+            authSwitchText.innerHTML = `Tu as déjà un compte ? <a id="link-to-login">Se connecter</a>`;
+            lierLienBascule(); // Ré-attache l'écouteur sur le nouveau lien généré
+        };
+    }
+
+    if (linkToLogin) {
+        linkToLogin.onclick = (e) => {
+            e.preventDefault();
+            isLoginMode = true;
+            authTitle.textContent = "Ha, te revoilà !";
+            authSubtitle.textContent = "Nous sommes ravis de te revoir !";
+            authSubmitBtn.textContent = "Se connecter";
+            authSwitchText.innerHTML = `Besoin d'un compte ? <a id="link-to-register">S'inscrire</a>`;
+            lierLienBascule(); // Ré-attache l'écouteur sur le nouveau lien généré
+        };
+    }
+}
+
+// Au clic sur le bouton bleu principal de soumission
+authSubmitBtn.addEventListener('click', async () => {
+    const username = authUsernameInput.value.trim();
+    const password = authPasswordInput.value;
     
-    if (messageTexte && currentUser && currentUser.id) {
-        socket.emit('chat message', { 
-            userId: currentUser.id,
-            pseudo: currentUser.username, 
-            texte: messageTexte,
-            avatar: currentUser.avatar 
+    if(!username || !password) return alert("Veuillez remplir tous les champs !");
+    
+    const endpoint = isLoginMode ? '/api/login' : '/api/register';
+    
+    try {
+        const response = await fetch(endpoint, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ username, password }) 
         });
-        input.value = ''; 
-        socket.emit('typing', { pseudo: currentUser.username, isTyping: false });
+        const data = await response.json();
+        
+        if (response.ok) {
+            currentUser = data.user;
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            authScreen.style.display = 'none';
+            mainApp.style.display = 'block';
+            initialiserSession();
+        } else {
+            alert(data.error);
+        }
+    } catch(err) {
+        alert("Erreur de connexion au serveur.");
     }
 });
 
-socket.on('chat message', (data) => { ajouterMessageEcran(data); });
-
-socket.on('chargement historique', (messagesHistorique) => {
-    messages.innerHTML = ''; 
-    messagesHistorique.forEach((data) => ajouterMessageEcran(data));
-});
-
-let timeout;
-input.addEventListener('input', () => {
+function rafraichirInterfaceUtilisateur() {
     if (!currentUser) return;
-    socket.emit('typing', { pseudo: currentUser.username, isTyping: true });
-    clearTimeout(timeout);
-    timeout = setTimeout(() => {
-        socket.emit('typing', { pseudo: currentUser.username, isTyping: false });
-    }, 1500);
+    footerUserUsername.textContent = currentUser.username;
+    footerUserAvatar.src = currentUser.avatar;
+    document.getElementById('edit-username').value = currentUser.username;
+    document.getElementById('edit-bio').value = currentUser.bio || '';
+}
+
+// Gestion des onglets de configuration
+document.querySelectorAll('.modal-tab-btn').forEach(b => {
+    b.onclick = () => {
+        document.querySelectorAll('.modal-tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        b.classList.add('active');
+        activeTab = b.getAttribute('data-target');
+        document.getElementById(activeTab).classList.add('active');
+    };
 });
 
-socket.on('typing', (data) => {
-    typingIndicator.textContent = data.isTyping ? `${data.pseudo} est en train d'écrire...` : '';
-});
+openSettingsBtn.onclick = () => settingsModal.style.display = 'flex';
+closeSettingsBtn.onclick = () => settingsModal.style.display = 'none';
+logoutBtn.onclick = () => { localStorage.clear(); location.reload(); };
+
+saveProfileBtn.onclick = async () => {
+    const formData = new FormData();
+    formData.append('userId', currentUser.id);
+    formData.append('activeTab', activeTab);
+    if (activeTab === 'tab-profile') {
+        formData.append('bio', document.getElementById('edit-bio').value);
+        if (document.getElementById('edit-avatar-file').files[0]) formData.append('avatarFile', document.getElementById('edit-avatar-file').files[0]);
+    } else {
+        formData.append('username', document.getElementById('edit-username').value);
+        formData.append('currentPassword', document.getElementById('edit-current-password').value);
+        formData.append('newPassword', document.getElementById('edit-new-password').value);
+    }
+    const res = await fetch('/api/profile/update', { method: 'POST', body: formData });
+    const d = await res.json();
+    if (res.ok) { currentUser = d.user; localStorage.setItem('currentUser', JSON.stringify(currentUser)); initialiserSession(); settingsModal.style.display = 'none'; } else alert(d.error);
+};
+
+// Vérification et lancement au démarrage
+const savedUser = localStorage.getItem('currentUser');
+if (savedUser && savedUser !== "undefined" && savedUser !== "null") {
+    currentUser = JSON.parse(savedUser);
+    authScreen.style.display = 'none';
+    mainApp.style.display = 'block';
+    initialiserSession();
+} else {
+    // Initialise l'écouteur de bascule d'écran si on commence déconnecté
+    lierLienBascule();
+}

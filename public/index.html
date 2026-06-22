@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚡ Mini-Discord</title>
+    <title>⚡ Mini-Discord Pro</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { 
@@ -25,63 +25,77 @@
         .switch-auth a { color: #00a8fc; text-decoration: none; cursor: pointer; }
         
         /* Application Globale */
-        #main-app { display: none; width: 100%; max-width: 900px; height: 85vh; background: #2b2d31; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        #main-app { display: none; width: 100%; max-width: 1000px; height: 85vh; background: #2b2d31; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
         .app-layout { display: flex; height: 100%; }
         
-        /* Panneau de Gauche (Salons + Toi) */
-        #left-sidebar { width: 240px; background: #2f3136; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid #1f2023; }
-        .channels-list { padding: 15px; }
-        .channel-item { padding: 8px; color: #8e9297; font-weight: bold; cursor: pointer; border-radius: 4px; }
-        .channel-item.active { background: #40444b; color: #fff; }
+        /* Panneau de Gauche (Salons + MP + Toi) */
+        #left-sidebar { width: 260px; background: #2f3136; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid #1f2023; }
+        .sidebar-scroll { flex-grow: 1; overflow-y: auto; padding: 15px; }
+        .sidebar-section-title { color: #949ba4; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; margin-top: 15px; }
+        .sidebar-section-title:first-child { margin-top: 0; }
         
-        /* Petite barre utilisateur en bas à gauche */
+        .item-list { list-style: none; }
+        .clickable-item { padding: 8px; color: #8e9297; font-weight: 500; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+        .clickable-item:hover { background: #35373c; color: #dbdee1; }
+        .clickable-item.active { background: #40444b; color: #fff; font-weight: bold; }
+        .sidebar-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+        
+        /* Pied de page utilisateur */
         .user-footer { background: #232428; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
-        .user-footer-info { display: flex; align-items: center; gap: 8px; overflow: hidden; }
-        .footer-avatar { width: 32px; height: 32px; border-radius: 50%; background: #40444b; object-fit: cover; }
+        .user-footer-info { display: flex; align-items: center; gap: 8px; overflow: hidden; cursor: pointer; }
+        .footer-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
         .footer-username { color: #fff; font-size: 0.85rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .gear-btn { background: none; border: none; color: #b9bbbe; cursor: pointer; font-size: 1.2rem; padding: 4px; border-radius: 4px; }
         .gear-btn:hover { background: #35373c; color: #dcddde; }
 
         /* Zone de Chat */
         #chat-window { flex-grow: 1; display: flex; flex-direction: column; height: 100%; }
+        #chat-header { background: #313338; padding: 15px; border-bottom: 1px solid #1f2023; color: #fff; font-weight: bold; }
         #messages { list-style: none; padding: 20px; flex-grow: 1; overflow-y: auto; }
         #messages li { margin-bottom: 12px; display: flex; align-items: start; gap: 10px; }
-        .avatar-chat { width: 35px; height: 35px; border-radius: 50%; background: #40444b; object-fit: cover; }
+        .avatar-chat { width: 35px; height: 35px; border-radius: 50%; background: #40444b; object-fit: cover; cursor: pointer; }
+        .avatar-chat:hover { filter: brightness(0.8); }
         .msg-content { display: flex; flex-direction: column; }
-        .pseudo { color: #f2f3f5; font-weight: bold; font-size: 0.95rem; }
+        .pseudo { color: #f2f3f5; font-weight: bold; font-size: 0.95rem; cursor: pointer; }
+        .pseudo:hover { text-decoration: underline; }
         .texte-message { color: #dbdee1; margin-top: 2px; word-break: break-all; }
         #typing-indicator { padding: 0 20px 5px 20px; font-size: 0.85rem; color: #b5bac1; height: 20px; font-style: italic; }
         #form { display: flex; padding: 20px; background: #2b2d31; gap: 10px; }
         #input { flex-grow: 1; padding: 12px; background: #383a40; border: none; color: #fff; border-radius: 8px; outline: none; }
 
-        /* 🪟 MODALE PARAMÈTRES STYLE DISCORD AVEC ONGLETS */
+        /* 🪟 MINI PROFIL POP-UP (STYLE DISCORD) */
+        #mini-profile-card { display: none; position: fixed; background: #18191c; width: 280px; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.6); z-index: 1000; border: 1px solid #2f3136; }
+        .profile-banner { height: 60px; background: #5865f2; }
+        .profile-avatar-container { padding: 0 16px; margin-top: -30px; display: flex; justify-content: space-between; align-items: end; }
+        .profile-card-avatar { width: 70px; height: 70px; border-radius: 50%; border: 6px solid #18191c; background: #2f3136; object-fit: cover; }
+        .profile-card-body { padding: 16px; background: #1f2023; margin: 8px; border-radius: 8px; }
+        .profile-card-username { color: #fff; font-size: 1.1rem; font-weight: bold; margin-bottom: 10px; }
+        .profile-card-bio-title { font-size: 0.75rem; font-weight: bold; text-transform: uppercase; color: #b5bac1; margin-bottom: 4px; }
+        .profile-card-bio { font-size: 0.85rem; color: #dbdee1; margin-bottom: 15px; white-space: pre-line; }
+        .profile-action-btn { width: 100%; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.85rem; margin-bottom: 6px; }
+        .btn-primary { background: #5865f2; color: #fff; }
+        .btn-primary:hover { background: #4752c4; }
+        .btn-secondary { background: #4f545c; color: #fff; }
+        .btn-secondary:hover { background: #686d73; }
+
+        /* MODALE PARAMÈTRES GRANDE */
         #settings-modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 999; }
         .modal-content { background: #313338; width: 100%; max-width: 650px; height: 500px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 25px rgba(0,0,0,0.5); display: flex; }
-        
-        /* Menu latéral gauche de la modale */
         .modal-sidebar { width: 180px; background: #2b2d31; padding: 20px 10px; display: flex; flex-direction: column; gap: 5px; border-right: 1px solid #1f2023; }
         .modal-tab-btn { background: none; border: none; color: #b5bac1; text-align: left; padding: 10px; border-radius: 4px; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
         .modal-tab-btn:hover { background: #35373c; color: #dbdee1; }
         .modal-tab-btn.active { background: #40444b; color: #fff; font-weight: bold; }
-        
-        /* Zone de contenu à droite de la modale */
         .modal-main { flex-grow: 1; display: flex; flex-direction: column; background: #313338; }
         .modal-header { padding: 20px; color: #fff; font-weight: bold; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f2023; }
         .close-modal-btn { background: none; border: none; color: #b5bac1; font-size: 1.2rem; cursor: pointer; }
         .modal-body { padding: 20px; flex-grow: 1; overflow-y: auto; }
-        
-        /* Conteneurs des sections cachées/affichées */
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-
         .modal-body label { display: block; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; color: #b5bac1; margin-bottom: 6px; margin-top: 15px; }
         .modal-body label:first-child { margin-top: 0; }
         .modal-body input { width: 100%; padding: 10px; background: #1e1f22; border: none; color: #fff; border-radius: 4px; outline: none; }
-        .modal-body input[type="file"] { background: none; padding: 5px 0; }
-        
         .modal-footer { padding: 15px 20px; background: #2b2d31; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1f2023; }
         .save-btn { padding: 10px 20px; background: #248046; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .save-btn:hover { background: #1a6535; }
         .logout-modal-btn { padding: 10px 15px; background: #da373c; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
@@ -105,72 +119,80 @@
     <div id="main-app">
         <div class="app-layout">
             <div id="left-sidebar">
-                <div class="channels-list">
-                    <div style="color: #fff; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; margin-bottom: 10px;">Salons textuels</div>
-                    <div class="channel-item active"># général</div>
+                <div class="sidebar-scroll">
+                    <div class="sidebar-section-title">Salons textuels</div>
+                    <ul class="item-list" id="channels-list">
+                        <li class="clickable-item active" id="global-channel-btn" data-type="global">💬 # général</li>
+                    </ul>
+
+                    <div class="sidebar-section-title">Messages privés</div>
+                    <ul class="item-list" id="dms-list">
+                        </ul>
                 </div>
                 <div class="user-footer">
-                    <div class="user-footer-info">
+                    <div class="user-footer-info" id="footer-profile-click">
                         <img id="footer-user-avatar" class="footer-avatar" src="" alt="">
                         <div id="footer-user-username" class="footer-username">@Pseudo</div>
                     </div>
-                    <button class="gear-btn" id="open-settings-btn" title="Paramètres utilisateur">⚙️</button>
+                    <button class="gear-btn" id="open-settings-btn">⚙️</button>
                 </div>
             </div>
 
             <div id="chat-window">
-                <div style="background: #313338; padding: 15px; border-bottom: 1px solid #1f2023;">
-                    <span style="color: #fff; font-weight: bold;">💬 # général</span>
-                </div>
+                <div id="chat-header">💬 # général</div>
                 <ul id="messages"></ul>
                 <div id="typing-indicator"></div>
                 <form id="form">
-                    <input id="input" autocomplete="off" placeholder="Envoyer un message dans #général" />
+                    <input id="input" autocomplete="off" placeholder="Envoyer un message..." />
                 </form>
             </div>
+        </div>
+    </div>
+
+    <div id="mini-profile-card">
+        <div class="profile-banner"></div>
+        <div class="profile-avatar-container">
+            <img class="profile-card-avatar" id="mp-card-avatar" src="" alt="">
+        </div>
+        <div class="profile-card-body">
+            <div class="profile-card-username" id="mp-card-username">User</div>
+            <div class="profile-card-bio-title">À propos de moi</div>
+            <div class="profile-card-bio" id="mp-card-bio">Pas de biographie.</div>
+            
+            <div id="mp-card-actions">
+                </div>
         </div>
     </div>
 
     <div id="settings-modal">
         <div class="modal-content">
             <div class="modal-sidebar">
-                <div style="color: #949ba4; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; padding: 0 10px 10px 10px;">Paramètres</div>
                 <button class="modal-tab-btn active" data-target="tab-profile">Mon Profil</button>
                 <button class="modal-tab-btn" data-target="tab-account">Mon Compte</button>
-                <button class="logout-modal-btn" id="logout-btn" style="margin-top: auto; text-align: center;">Déconnexion</button>
+                <button class="logout-modal-btn" id="logout-btn" style="margin-top: auto;">Déconnexion</button>
             </div>
-            
             <div class="modal-main">
                 <div class="modal-header">
                     <span id="modal-tab-title">Profil utilisateur</span>
                     <button class="close-modal-btn" id="close-settings-btn">✕</button>
                 </div>
-                
                 <div class="modal-body">
                     <div id="tab-profile" class="tab-content active">
-                        <label>Photo de profil (depuis le PC)</label>
+                        <label>Photo de profil</label>
                         <input type="file" id="edit-avatar-file" accept="image/*">
-
-                        <label>Modifier la Biographie</label>
-                        <input type="text" id="edit-bio" placeholder="Dis-nous en plus sur toi...">
+                        <label>Biographie</label>
+                        <input type="text" id="edit-bio">
                     </div>
-
                     <div id="tab-account" class="tab-content">
-                        <label>Changer le Pseudo (Nom d'utilisateur)</label>
+                        <label>Pseudo</label>
                         <input type="text" id="edit-username">
-
-                        <label style="color: #f23f43; margin-top: 25px;">Nouveau mot de passe</label>
-                        <input type="password" id="edit-new-password" placeholder="Laisse vide pour ne pas changer">
-
-                        <hr style="border: 0; border-top: 1px solid #3f4147; margin: 25px 0 15px 0;">
-
-                        <label style="color: #00a8fc;">Mot de passe actuel (Requis pour l'onglet Compte)</label>
-                        <input type="password" id="edit-current-password" placeholder="Entre ton mot de passe actuel pour valider">
+                        <label style="color: #f23f43; margin-top: 15px;">Nouveau mot de passe</label>
+                        <input type="password" id="edit-new-password">
+                        <label style="color: #00a8fc; margin-top: 15px;">Mot de passe actuel</label>
+                        <input type="password" id="edit-current-password">
                     </div>
                 </div>
-                
                 <div class="modal-footer">
-                    <span style="color: #949ba4; font-size: 0.8rem;">Modifications instantanées</span>
                     <button class="save-btn" id="save-profile-btn">Enregistrer</button>
                 </div>
             </div>

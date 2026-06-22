@@ -16,142 +16,151 @@ app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const dir = './uploads';
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-        cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
+    destination: (dir, file, cb) => { if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads'); cb(null, './uploads'); },
+    filename: (req, file, cb) => { cb(null, Date.now() + path.extname(file.originalname)); }
 });
 const upload = multer({ storage: storage });
 
-// --- ROUTES AUTHENTIFICATION ---
+// Dictionnaire pour suivre les sockets des utilisateurs actifs en temps réel
+const sessionsActives = {};
 
+// --- MIDDLEWARES & AUTHENTIFICATION REST (Inchangé ou adapté pour la Bio) ---
 app.post('/api/register', async (req, res) => {
-    const { username, password } = req.body;
-    const db = getDb();
-    if (!username || !password) return res.status(400).json({ error: "Champs incomplets." });
-
+    const { username, password } = req.body; const db = getDb();
     try {
-        const saltRounds = 10;
-        const hash = await bcrypt.hash(password, saltRounds);
-        const defaultAvatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`;
-        
-        // Insertion de l'utilisateur
-        const result = await db.run(
-            'INSERT INTO users (username, password_hash, avatar_url, bio) VALUES (?, ?, ?, ?)', 
-            [username, hash, defaultAvatar, 'Pas de biographie pour le moment.']
-        );
-        
-        // 🛠️ CORRECTION : On récupère l'ID qui vient d'être généré par SQLite
-        const newUserId = result.lastID;
-
-        // On connecte directement l'utilisateur en renvoyant son profil complet
-        res.json({ 
-            success: true, 
-            user: { id: newUserId, username, bio: 'Pas de biographie pour le moment.', avatar: defaultAvatar } 
-        });
-    } catch (err) {
-        if (err.message.includes('UNIQUE')) return res.status(400).json({ error: "Ce pseudo est déjà pris !" });
-        res.status(500).json({ error: "Erreur serveur lors de l'inscription." });
-    }
+        const hash = await bcrypt.hash(password, 10);
+        const avatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`;
+        const result = await db.run('INSERT INTO users (username, password_hash, avatar_url, bio) VALUES (?, ?, ?, ?)', [username, hash, avatar, 'Pas de bio.']);
+        res.json({ success: true, user: { id: result.lastID, username, bio: 'Pas de bio.', avatar } });
+    } catch(e) { res.status(400).json({ error: "Nom d'utilisateur déjà pris." }); }
 });
 
 app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
-    const db = getDb();
-    try {
-        const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
-        if (!user) return res.status(400).json({ error: "Identifiants incorrects." });
-
-        const match = await bcrypt.compare(password, user.password_hash);
-        if (!match) return res.status(400).json({ error: "Identifiants incorrects." });
-
+    const { username, password } = req.body; const db = getDb();
+    const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
+    if(user && await bcrypt.compare(password, user.password_hash)) {
         res.json({ success: true, user: { id: user.id, username: user.username, bio: user.bio, avatar: user.avatar_url } });
-    } catch (err) { res.status(500).json({ error: "Erreur serveur." }); }
+    } else res.status(400).json({ error: "Identifiants incorrects." });
 });
 
 app.post('/api/profile/update', upload.single('avatarFile'), async (req, res) => {
-    const { userId, username, bio, currentPassword, newPassword } = req.body;
-    const db = getDb();
-
-    try {
-        const user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
-        if (!user) return res.status(400).json({ error: "Utilisateur introuvable." });
-
-        let finalUsername = username || user.username;
-        let finalBio = bio !== undefined ? bio : user.bio;
-        let finalAvatarUrl = user.avatar_url;
-        let finalPasswordHash = user.password_hash;
-
-        if (req.file) {
-            finalAvatarUrl = `/uploads/${req.file.filename}`;
-        }
-
-        if (newPassword || (username && username !== user.username)) {
-            if (!currentPassword) {
-                return res.status(400).json({ error: "Le mot de passe actuel est requis." });
-            }
-            const match = await bcrypt.compare(currentPassword, user.password_hash);
-            if (!match) return res.status(400).json({ error: "Mot de passe actuel incorrect." });
-
-            if (newPassword) {
-                finalPasswordHash = await bcrypt.hash(newPassword, 10);
-            }
-        }
-
-        await db.run(
-            'UPDATE users SET username = ?, bio = ?, avatar_url = ?, password_hash = ? WHERE id = ?',
-            [finalUsername, finalBio, finalAvatarUrl, finalPasswordHash, userId]
-        );
-
-        res.json({
-            success: true,
-            user: { id: user.id, username: finalUsername, bio: finalBio, avatar: finalAvatarUrl }
-        });
-
-    } catch (err) {
-        if (err.message.includes('UNIQUE')) return res.status(400).json({ error: "Ce nom d'utilisateur est déjà utilisé." });
-        res.status(500).json({ error: "Erreur lors de la modification." });
+    const { userId, username, bio, currentPassword, newPassword, activeTab } = req.body; const db = getDb();
+    const user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+    let fUser = user.username, fBio = user.bio, fAvatar = user.avatar_url, fHash = user.password_hash;
+    
+    if (activeTab === 'tab-profile') {
+        fBio = bio; if (req.file) fAvatar = `/uploads/${req.file.filename}`;
+    } else {
+        if (!await bcrypt.compare(currentPassword, user.password_hash)) return res.status(400).json({ error: "Mot de passe erroné" });
+        fUser = username; if(newPassword) fHash = await bcrypt.hash(newPassword, 10);
     }
+    await db.run('UPDATE users SET username=?, bio=?, avatar_url=?, password_hash=? WHERE id=?', [fUser, fBio, fAvatar, fHash, userId]);
+    res.json({ success: true, user: { id: user.id, username: fUser, bio: fBio, avatar: fAvatar } });
 });
 
-// --- TEMPS RÉEL (SOCKET.IO) ---
+// --- TEMPS REEL & SOCKET.IO ---
 io.on('connection', (socket) => {
     const db = getDb();
 
-    socket.on('demande historique', async () => {
-        try {
-            const historique = await db.all(`
-                SELECT users.username as pseudo, messages.texte, users.avatar_url as avatar 
-                FROM messages 
-                LEFT JOIN users ON messages.user_id = users.id 
-                ORDER BY messages.id DESC LIMIT 50
+    socket.on('authentification-socket', (userId) => {
+        socket.userId = parseInt(userId);
+        sessionsActives[socket.userId] = socket.id;
+    });
+
+    // Envoi de la liste d'amis
+    async function envoyerListeAmis(uId) {
+        const targetSocketId = sessionsActives[uId];
+        if (!targetSocketId) return;
+        const friends = await db.all(`
+            SELECT id, username, avatar_url, bio FROM users WHERE id IN (
+                SELECT user_one_id FROM friends WHERE user_two_id = ? AND status = 'accepted'
+                UNION
+                SELECT user_two_id FROM friends WHERE user_one_id = ? AND status = 'accepted'
+            )
+        `, [uId, uId]);
+        io.to(targetSocketId).emit('mise a jour amis', friends);
+    }
+
+    socket.on('demande liste amis', () => { if(socket.userId) envoyerListeAmis(socket.userId); });
+
+    // Récupération de l'historique ciblé (Global ou Messages Privés)
+    socket.on('demande historique', async (target) => {
+        if (!socket.userId) return;
+        let messages = [];
+        if (target.type === 'global') {
+            messages = await db.all(`
+                SELECT users.username as pseudo, messages.user_id as senderId, messages.texte, users.avatar_url as avatar, false as isGlobal
+                FROM messages LEFT JOIN users ON messages.user_id = users.id 
+                WHERE messages.receiver_id IS NULL ORDER BY messages.id DESC LIMIT 50
             `);
-            socket.emit('chargement historique', historique.reverse());
-        } catch (err) { console.error(err); }
+        } else {
+            messages = await db.all(`
+                SELECT users.username as pseudo, messages.user_id as senderId, messages.receiver_id as receiverId, messages.texte, users.avatar_url as avatar, false as isGlobal
+                FROM messages LEFT JOIN users ON messages.user_id = users.id 
+                WHERE (messages.user_id = ? AND messages.receiver_id = ?) 
+                OR (messages.user_id = ? AND messages.receiver_id = ?)
+                ORDER BY messages.id DESC LIMIT 50
+            `, [socket.userId, target.id, target.id, socket.userId]);
+        }
+        socket.emit('chargement historique', messages.reverse());
     });
 
+    // Construction dynamique du Mini-Profil
+    socket.on('demande infos profil', async (targetId) => {
+        if(!socket.userId) return;
+        const target = await db.get('SELECT id, username, avatar_url, bio FROM users WHERE id = ?', [targetId]);
+        if(!target) return;
+
+        const relation = await db.get(`
+            SELECT * FROM friends WHERE (user_one_id = ? AND user_two_id = ?) OR (user_one_id = ? AND user_two_id = ?)
+        `, [socket.userId, targetId, targetId, socket.userId]);
+
+        target.isFriend = relation && relation.status === 'accepted';
+        target.hasSentRequest = relation && relation.status === 'pending' && relation.action_user_id === parseInt(targetId);
+        target.hasReceivedRequest = relation && relation.status === 'pending' && relation.action_user_id === socket.userId;
+
+        socket.emit('reponse infos profil', target);
+    });
+
+    // Actions Réseau (Demander, Accepter)
+    socket.on('action ami', async (data) => {
+        if(!socket.userId) return;
+        if(data.action === 'request') {
+            await db.run('INSERT INTO friends (user_one_id, user_two_id, status, action_user_id) VALUES (?, ?, ?, ?)', [socket.userId, data.targetId, 'pending', socket.userId]);
+        } else if(data.action === 'accept') {
+            await db.run('UPDATE friends SET status = "accepted" WHERE (user_one_id = ? AND user_two_id = ?) OR (user_one_id = ? AND user_two_id = ?)', [socket.userId, data.targetId, data.targetId, socket.userId]);
+            envoyerListeAmis(socket.userId);
+            envoyerListeAmis(data.targetId);
+        }
+    });
+
+    // Routage intelligent des messages
     socket.on('chat message', async (data) => {
-        try {
-            const userIdNum = parseInt(data.userId);
-            if (isNaN(userIdNum) || userIdNum <= 0) return;
+        if(!socket.userId) return;
+        const sender = await db.get('SELECT username, avatar_url FROM users WHERE id = ?', [socket.userId]);
+        
+        const payload = {
+            senderId: socket.userId,
+            pseudo: sender.username,
+            avatar: sender.avatar_url,
+            texte: data.texte,
+            isGlobal: data.target.type === 'global',
+            receiverId: data.target.id
+        };
 
-            await db.run('INSERT INTO messages (user_id, texte) VALUES (?, ?)', [userIdNum, data.texte]);
-            
-            io.emit('chat message', {
-                pseudo: data.pseudo,
-                texte: data.texte,
-                avatar: data.avatar
-            });
-        } catch (err) { console.error(err); }
+        if(data.target.type === 'global') {
+            await db.run('INSERT INTO messages (user_id, texte) VALUES (?, ?)', [socket.userId, data.texte]);
+            io.emit('chat message', payload);
+        } else {
+            await db.run('INSERT INTO messages (user_id, receiver_id, texte) VALUES (?, ?, ?)', [socket.userId, data.target.id, data.texte]);
+            // On distribue de manière sélective l'événement aux deux terminaux concernés
+            if(sessionsActives[socket.userId]) io.to(sessionsActives[socket.userId]).emit('chat message', payload);
+            if(sessionsActives[data.target.id]) io.to(sessionsActives[data.target.id]).emit('chat message', payload);
+        }
     });
 
-    socket.on('typing', (data) => { socket.broadcast.emit('typing', data); });
+    socket.on('disconnect', () => { if(socket.userId) delete sessionsActives[socket.userId]; });
 });
 
-const PORT = 3000;
-async function start() { await initDatabase(); server.listen(PORT); }
+async function start() { await initDatabase(); server.listen(3000); }
 start();
