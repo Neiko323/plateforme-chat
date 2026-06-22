@@ -35,10 +35,28 @@
         .sidebar-section-title:first-child { margin-top: 0; }
         
         .item-list { list-style: none; }
-        .clickable-item { padding: 8px; color: #8e9297; font-weight: 500; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+        .clickable-item { padding: 8px; color: #949ba4; font-weight: 500; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
         .clickable-item:hover { background: #35373c; color: #dbdee1; }
-        .clickable-item.active { background: #40444b; color: #fff; font-weight: bold; }
+        .clickable-item.active { background: #40444b; color: #fff !important; font-weight: bold !important; }
+        
+        /* 🚨 Style pour signifier qu'il y a des messages non lus */
+        .clickable-item.unread { color: #ffffff; font-weight: bold; }
+        
+        .item-content { display: flex; align-items: center; gap: 8px; }
         .sidebar-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+        
+        /* 🔴 Badge rouge style Discord (image_90d69f.png) */
+        .badge-notification {
+            background-color: #f23f43;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 18px;
+            text-align: center;
+            display: inline-block;
+        }
         
         /* Pied de page utilisateur */
         .user-footer { background: #232428; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
@@ -59,11 +77,14 @@
         .pseudo { color: #f2f3f5; font-weight: bold; font-size: 0.95rem; cursor: pointer; }
         .pseudo:hover { text-decoration: underline; }
         .texte-message { color: #dbdee1; margin-top: 2px; word-break: break-all; }
-        #typing-indicator { padding: 0 20px 5px 20px; font-size: 0.85rem; color: #b5bac1; height: 20px; font-style: italic; }
+        
+        /* ⌨️ Indicateur d'écriture */
+        #typing-indicator { padding: 0 20px 5px 20px; font-size: 0.85rem; color: #b5bac1; height: 20px; font-style: italic; font-weight: 500; }
+        
         #form { display: flex; padding: 20px; background: #2b2d31; gap: 10px; }
         #input { flex-grow: 1; padding: 12px; background: #383a40; border: none; color: #fff; border-radius: 8px; outline: none; }
 
-        /* 🪟 MINI PROFIL POP-UP (STYLE DISCORD) */
+        /* MINI PROFIL */
         #mini-profile-card { display: none; position: fixed; background: #18191c; width: 280px; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.6); z-index: 1000; border: 1px solid #2f3136; }
         .profile-banner { height: 60px; background: #5865f2; }
         .profile-avatar-container { padding: 0 16px; margin-top: -30px; display: flex; justify-content: space-between; align-items: end; }
@@ -78,7 +99,7 @@
         .btn-secondary { background: #4f545c; color: #fff; }
         .btn-secondary:hover { background: #686d73; }
 
-        /* MODALE PARAMÈTRES GRANDE */
+        /* MODALE PARAMÈTRES */
         #settings-modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 999; }
         .modal-content { background: #313338; width: 100%; max-width: 650px; height: 500px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 25px rgba(0,0,0,0.5); display: flex; }
         .modal-sidebar { width: 180px; background: #2b2d31; padding: 20px 10px; display: flex; flex-direction: column; gap: 5px; border-right: 1px solid #1f2023; }
@@ -101,6 +122,7 @@
 </head>
 <body>
 
+    <!-- AUTHENTIFICATION -->
     <div id="auth-screen" class="auth-container">
         <h2 id="auth-title">Ha, te revoilà !</h2>
         <p id="auth-subtitle">Nous sommes ravis de te revoir !</p>
@@ -116,18 +138,25 @@
         <div class="switch-auth" id="auth-switch-text">Besoin d'un compte ? <a id="link-to-register">S'inscrire</a></div>
     </div>
 
+    <!-- APPLICATION MINI DISCORD -->
     <div id="main-app">
         <div class="app-layout">
             <div id="left-sidebar">
                 <div class="sidebar-scroll">
+                    <!-- SECTION SALONS -->
                     <div class="sidebar-section-title">Salons textuels</div>
-                    <ul class="item-list" id="channels-list">
-                        <li class="clickable-item active" id="global-channel-btn" data-type="global">💬 # général</li>
+                    <ul class="item-list">
+                        <li class="clickable-item active" id="global-channel-btn">
+                            <div class="item-content">
+                                <span>💬 # général</span>
+                            </div>
+                            <div id="global-badge-container"></div>
+                        </li>
                     </ul>
 
+                    <!-- SECTION MESSAGES PRIVÉS & AMIS -->
                     <div class="sidebar-section-title">Messages privés</div>
-                    <ul class="item-list" id="dms-list">
-                        </ul>
+                    <ul class="item-list" id="dms-list"></ul>
                 </div>
                 <div class="user-footer">
                     <div class="user-footer-info" id="footer-profile-click">
@@ -138,6 +167,7 @@
                 </div>
             </div>
 
+            <!-- Zone de chat principale -->
             <div id="chat-window">
                 <div id="chat-header">💬 # général</div>
                 <ul id="messages"></ul>
@@ -149,6 +179,7 @@
         </div>
     </div>
 
+    <!-- MINI PROFIL POP-UP -->
     <div id="mini-profile-card">
         <div class="profile-banner"></div>
         <div class="profile-avatar-container">
@@ -158,12 +189,11 @@
             <div class="profile-card-username" id="mp-card-username">User</div>
             <div class="profile-card-bio-title">À propos de moi</div>
             <div class="profile-card-bio" id="mp-card-bio">Pas de biographie.</div>
-            
-            <div id="mp-card-actions">
-                </div>
+            <div id="mp-card-actions"></div>
         </div>
     </div>
 
+    <!-- MODALE PARAMÈTRES -->
     <div id="settings-modal">
         <div class="modal-content">
             <div class="modal-sidebar">
