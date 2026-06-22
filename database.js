@@ -15,16 +15,17 @@ async function initDatabase() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
+        email TEXT UNIQUE,
         bio TEXT DEFAULT 'Pas de biographie pour le moment.',
         avatar_url TEXT DEFAULT 'https://api.dicebear.com/7.x/bottts/svg?seed=default'
       );
     `);
 
-    // Table Messages (Historique)
+    // 🛠️ MODIFICATION ICI : On stocke l'id de l'utilisateur à la place de son nom
     await db.exec(`
       CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
         texte TEXT NOT NULL,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -34,8 +35,5 @@ async function initDatabase() {
     return db;
 }
 
-function getDb() {
-    return db;
-}
-
+function getDb() { return db; }
 module.exports = { initDatabase, getDb };
