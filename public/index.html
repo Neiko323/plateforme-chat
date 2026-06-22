@@ -68,14 +68,24 @@
         #messages li { margin-bottom: 12px; display: flex; align-items: start; gap: 10px; }
         .avatar-chat { width: 35px; height: 35px; border-radius: 50%; background: #40444b; object-fit: cover; cursor: pointer; }
         .avatar-chat:hover { filter: brightness(0.8); }
-        .msg-content { display: flex; flex-direction: column; }
+        .msg-content { display: flex; flex-direction: column; max-width: 85%; }
         .pseudo { color: #f2f3f5; font-weight: bold; font-size: 0.95rem; cursor: pointer; }
         .pseudo:hover { text-decoration: underline; }
         .texte-message { color: #dbdee1; margin-top: 2px; word-break: break-all; }
         
+        /* Affichage des médias */
+        .chat-image { max-width: 100%; max-height: 250px; border-radius: 6px; margin-top: 5px; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .chat-audio { margin-top: 5px; outline: none; max-width: 100%; }
+        .chat-file-link { display: inline-flex; align-items: center; gap: 8px; background: #2b2d31; padding: 10px 14px; border-radius: 6px; color: #00a8fc; text-decoration: none; font-size: 0.9rem; margin-top: 5px; border: 1px solid #1f2023; font-weight: 500; }
+        .chat-file-link:hover { text-decoration: underline; background: #35373c; }
+
         #typing-indicator { padding: 0 20px 5px 20px; font-size: 0.85rem; color: #b5bac1; height: 20px; font-style: italic; font-weight: 500; }
-        #form { display: flex; padding: 20px; background: #313338; gap: 10px; }
+        #form { display: flex; padding: 20px; background: #313338; gap: 10px; align-items: center; }
         #input { flex-grow: 1; padding: 12px; background: #383a40; border: none; color: #fff; border-radius: 8px; outline: none; }
+        
+        /* Bouton Fichier pièce jointe */
+        .attach-btn { background: #4e5058; color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 1.3rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .attach-btn:hover { background: #6d6f78; }
 
         /* Panneau droit (Membres) */
         #right-sidebar { width: 240px; background: #2f3136; border-left: 1px solid #1f2023; padding: 20px 10px; overflow-y: auto; flex-shrink: 0; }
@@ -193,7 +203,11 @@
                 <ul id="messages"></ul>
                 <div id="typing-indicator"></div>
                 <form id="form">
-                    <input id="input" autocomplete="off" placeholder="Envoyer un message..." />
+                    <!-- Champ d'envoi de fichier -->
+                    <button type="button" class="attach-btn" id="chat-attach-btn">+</button>
+                    <input type="file" id="chat-file-input" style="display: none;">
+                    
+                    <input id="input" autocomplete="off" placeholder="Envoyer un message ou un fichier..." />
                 </form>
             </div>
 

@@ -20,6 +20,10 @@ const globalBadgeContainer = document.getElementById('global-badge-container');
 const typingIndicator = document.getElementById('typing-indicator');
 const rightSidebar = document.getElementById('right-sidebar');
 
+// Éléments Pièce Jointe Chat
+const chatAttachBtn = document.getElementById('chat-attach-btn');
+const chatFileInput = document.getElementById('chat-file-input');
+
 const miniProfileCard = document.getElementById('mini-profile-card');
 const mpCardAvatar = document.getElementById('mp-card-avatar');
 const mpCardUsername = document.getElementById('mp-card-username');
@@ -169,7 +173,6 @@ socket.on('mise a jour amis', (amisData) => {
         li.className = "clickable-item";
         li.id = `dm-${friend.id}`;
         
-        // Si on était déjà dessus, on garde l'état actif visuel
         if(currentChatTarget.type === 'dm' && currentChatTarget.id === friend.id) {
             li.classList.add('active');
         }
@@ -191,13 +194,10 @@ socket.on('mise a jour amis', (amisData) => {
     });
 });
 
-// ÉCOUTE DE SUPPRESSION D'UN COMPTE DISTANT
 socket.on('compte supprime distant', (deletedUserId) => {
-    // Si on est actuellement en train de lui parler en MP, on ferme de force la fenêtre de chat vide
     if(currentChatTarget.type === 'dm' && currentChatTarget.id === parseInt(deletedUserId)) {
         basculerSurGeneral();
     }
-    // Demander la mise à jour propre des listes
     socket.emit('demande liste amis');
     socket.emit('demande liste membres', currentChatTarget);
 });
@@ -273,6 +273,37 @@ socket.on('typing-start', (data) => {
 
 socket.on('typing-stop', () => { typingIndicator.textContent = ''; });
 
+// --- LOGIQUE D'ENVOI DE FICHIERS ---
+chatAttachBtn.onclick = () => chatFileInput.click();
+
+chatFileInput.onchange = async () => {
+    const file = chatFileInput.files[0];
+    if(!file || !currentUser) return;
+
+    const formData = new FormData();
+    formData.append('chatFile', file);
+
+    try {
+        const res = await fetch('/api/chat/upload', { method: 'POST', body: formData });
+        if(res.ok) {
+            const fileData = await res.json();
+            // Envoyer le fichier au serveur via socket
+            socket.emit('chat message', { 
+                senderId: currentUser.id, 
+                target: currentChatTarget, 
+                texte: file.name,
+                fileUrl: fileData.fileUrl,
+                fileType: fileData.fileType
+            });
+        } else {
+            alert("Erreur lors de l'envoi du fichier.");
+        }
+    } catch(err) {
+        console.error(err);
+    }
+    chatFileInput.value = ''; // Reset l'input
+};
+
 form.addEventListener('submit', (e) => {
     e.preventDefault();
     const texte = input.value.trim();
@@ -314,11 +345,27 @@ socket.on('chargement historique', (messagesHistorique) => {
 
 function ajouterMessageEcran(data) {
     const item = document.createElement('li');
+    
+    // Construction dynamique du corps du message s'il s'agit d'un média ou fichier
+    let mediaHTML = `<span class="texte-message">${data.texte}</span>`;
+    
+    if (data.fileUrl) {
+        if (data.fileType === 'image') {
+            mediaHTML = `<span class="texte-message" style="font-size:0.85rem; color:#949ba4;">A envoyé une image :</span>
+                         <img src="${data.fileUrl}" class="chat-image" alt="${data.texte}" onclick="window.open('${data.fileUrl}')">`;
+        } else if (data.fileType === 'audio') {
+            mediaHTML = `<span class="texte-message" style="font-size:0.85rem; color:#949ba4;">A envoyé un fichier audio (${data.texte}) :</span>
+                         <audio src="${data.fileUrl}" controls class="chat-audio"></audio>`;
+        } else {
+            mediaHTML = `<a href="${data.fileUrl}" target="_blank" class="chat-file-link">📁 ${data.texte} (Télécharger)</a>`;
+        }
+    }
+
     item.innerHTML = `
         <img class="avatar-chat" data-uid="${data.senderId}" src="${data.avatar}" alt="">
         <div class="msg-content">
             <span class="pseudo" data-uid="${data.senderId}">${data.pseudo}</span>
-            <span class="texte-message">${data.texte}</span>
+            ${mediaHTML}
         </div>
     `;
     messages.appendChild(item);

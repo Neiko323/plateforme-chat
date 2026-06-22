@@ -15,6 +15,7 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
+// Configuration de stockage polyvalente pour Multer
 const storage = multer.diskStorage({
     destination: (req, file, cb) => { 
         if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
@@ -25,6 +26,34 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 const sessionsActives = {};
+
+// Modification de la table de messages pour supporter l'historique des fichiers si ce n'est pas encore fait
+async function adapterDatabaseSchema() {
+    const db = getDb();
+    try {
+        await db.run("ALTER TABLE messages ADD COLUMN file_url TEXT");
+        await db.run("ALTER TABLE messages ADD COLUMN file_type TEXT");
+    } catch(e) {
+        // Les colonnes existent déjà, on ignore l'erreur
+    }
+}
+
+// ==========================================
+//          ROUTES DE GESTION DES FICHIERS
+// ==========================================
+
+app.post('/api/chat/upload', upload.single('chatFile'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "Aucun fichier fourni." });
+    
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const mime = req.file.mimetype;
+    let fileType = 'file';
+
+    if (mime.startsWith('image/')) fileType = 'image';
+    else if (mime.startsWith('audio/')) fileType = 'audio';
+
+    res.json({ success: true, fileUrl, fileType });
+});
 
 // ==========================================
 //          ROUTES D'AUTHENTIFICATION
@@ -70,24 +99,18 @@ app.post('/api/profile/update', upload.single('avatarFile'), async (req, res) =>
     res.json({ success: true, user: { id: user.id, username: fUser, bio: fBio, avatar: fAvatar } });
 });
 
-// ROUTE : SUPPRESSION SÛRE ET SYNCHRONE DU COMPTE
 app.post('/api/profile/delete', async (req, res) => {
     const { userId } = req.body;
     const db = getDb();
     try {
-        // 1. Nettoyage de la base de données
         await db.run('DELETE FROM messages WHERE user_id = ? OR receiver_id = ?', [userId, userId]);
         await db.run('DELETE FROM friends WHERE user_one_id = ? OR user_two_id = ?', [userId, userId]);
         await db.run('DELETE FROM users WHERE id = ?', [userId]);
         
-        // 2. Suppression de la session active du serveur en mémoire vive
         if(sessionsActives[userId]) {
             delete sessionsActives[userId];
         }
-
-        // 3. Informer instantanément tous les autres clients en ligne
         io.emit('compte supprime distant', userId);
-
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: "Erreur lors de la suppression." });
@@ -184,13 +207,13 @@ io.on('connection', (socket) => {
         let messages = [];
         if (target.type === 'global') {
             messages = await db.all(`
-                SELECT users.username as pseudo, messages.user_id as senderId, messages.texte, users.avatar_url as avatar, true as isGlobal
+                SELECT users.username as pseudo, messages.user_id as senderId, messages.texte, messages.file_url as fileUrl, messages.file_type as fileType, users.avatar_url as avatar, true as isGlobal
                 FROM messages LEFT JOIN users ON messages.user_id = users.id 
                 WHERE messages.receiver_id IS NULL ORDER BY messages.id DESC LIMIT 50
             `);
         } else {
             messages = await db.all(`
-                SELECT users.username as pseudo, messages.user_id as senderId, messages.receiver_id as receiverId, messages.texte, users.avatar_url as avatar, false as isGlobal
+                SELECT users.username as pseudo, messages.user_id as senderId, messages.receiver_id as receiverId, messages.texte, messages.file_url as fileUrl, messages.file_type as fileType, users.avatar_url as avatar, false as isGlobal
                 FROM messages LEFT JOIN users ON messages.user_id = users.id 
                 WHERE (messages.user_id = ? AND messages.receiver_id = ?) OR (messages.user_id = ? AND messages.receiver_id = ?)
                 ORDER BY messages.id DESC LIMIT 50
@@ -244,13 +267,26 @@ io.on('connection', (socket) => {
     socket.on('chat message', async (data) => {
         if (!socket.userId) return;
         const sender = await db.get('SELECT username, avatar_url FROM users WHERE id = ?', [socket.userId]);
-        const payload = { senderId: socket.userId, pseudo: sender.username, avatar: sender.avatar_url, texte: data.texte, isGlobal: data.target.type === 'global', receiverId: data.target.id };
+        
+        const fileUrl = data.fileUrl || null;
+        const fileType = data.fileType || null;
+
+        const payload = { 
+            senderId: socket.userId, 
+            pseudo: sender.username, 
+            avatar: sender.avatar_url, 
+            texte: data.texte, 
+            isGlobal: data.target.type === 'global', 
+            receiverId: data.target.id,
+            fileUrl,
+            fileType
+        };
 
         if (data.target.type === 'global') {
-            await db.run('INSERT INTO messages (user_id, texte) VALUES (?, ?)', [socket.userId, data.texte]);
+            await db.run('INSERT INTO messages (user_id, texte, file_url, file_type) VALUES (?, ?, ?, ?)', [socket.userId, data.texte, fileUrl, fileType]);
             io.emit('chat message', payload);
         } else {
-            await db.run('INSERT INTO messages (user_id, receiver_id, texte) VALUES (?, ?, ?)', [socket.userId, data.target.id, data.texte]);
+            await db.run('INSERT INTO messages (user_id, receiver_id, texte, file_url, file_type) VALUES (?, ?, ?, ?, ?)', [socket.userId, data.target.id, data.texte, fileUrl, fileType]);
             if (sessionsActives[socket.userId]) io.to(sessionsActives[socket.userId].socketId).emit('chat message', payload);
             if (sessionsActives[data.target.id]) io.to(sessionsActives[data.target.id].socketId).emit('chat message', payload);
         }
@@ -269,6 +305,7 @@ io.on('connection', (socket) => {
 
 async function start() { 
     await initDatabase(); 
+    await adapterDatabaseSchema(); // S'assure que les colonnes pour les fichiers existent
     server.listen(3000, () => console.log('⚡ Serveur lancé sur http://localhost:3000')); 
 }
 start();
