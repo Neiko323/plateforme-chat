@@ -6,26 +6,34 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// On dit à Express de servir les fichiers qui sont dans le dossier 'public'
+// 📦 Notre "base de données" temporaire en mémoire
+const historiqueMessages = [];
+
 app.use(express.static('public'));
 
-// Quand un utilisateur se connecte au chat
 io.on('connection', (socket) => {
     console.log('Un utilisateur s\'est connecté ! ✅');
 
-    // Quand le serveur reçoit un message d'un client
+    // 🕒 Dès qu'un utilisateur se connecte, on lui envoie TOUS les anciens messages
+    socket.emit('chargement historique', historiqueMessages);
+
     socket.on('chat message', (msg) => {
-        // Le serveur renvoie ce message à TOUT LE MONDE
+        // On ajoute le nouveau message à notre historique
+        historiqueMessages.push(msg);
+
+        // Si l'historique devient trop grand, on peut limiter aux 50 derniers messages
+        if (historiqueMessages.length > 50) {
+            historiqueMessages.shift(); // Supprime le plus vieux message
+        }
+
         io.emit('chat message', msg);
     });
 
-    // Quand un utilisateur ferme l'onglet
     socket.on('disconnect', () => {
         console.log('Un utilisateur s\'est déconnecté... ❌');
     });
 });
 
-// On lance le serveur sur le port 3000
 const PORT = 3000;
 server.listen(PORT, () => {
     console.log(`Le serveur tourne sur http://localhost:${PORT}`);

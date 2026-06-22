@@ -24,3 +24,19 @@ socket.on('chat message', (msg) => {
     // Auto-scroll vers le bas pour voir le dernier message
     messages.scrollTop = messages.scrollHeight;
 });
+
+// Quand on se connecte, on reçoit l'historique du serveur
+socket.on('chargement historique', (messagesHistorique) => {
+    // On vide la zone de chat (au cas où)
+    messages.innerHTML = '';
+    
+    // On affiche chaque message de l'historique
+    messagesHistorique.forEach((msg) => {
+        const item = document.createElement('li');
+        item.textContent = msg;
+        messages.appendChild(item);
+    });
+    
+    // Scroll tout en bas
+    messages.scrollTop = messages.scrollHeight;
+});
