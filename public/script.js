@@ -27,6 +27,11 @@ const closeSettingsBtn = document.getElementById('close-settings-btn');
 const saveProfileBtn = document.getElementById('save-profile-btn');
 const logoutBtn = document.getElementById('logout-btn');
 
+// DOM Onglets Modale
+const tabButtons = document.querySelectorAll('.modal-tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
+const modalTabTitle = document.getElementById('modal-tab-title');
+
 // DOM Formulaire Paramètres
 const editAvatarFile = document.getElementById('edit-avatar-file');
 const editUsernameInput = document.getElementById('edit-username');
@@ -36,6 +41,24 @@ const editCurrentPasswordInput = document.getElementById('edit-current-password'
 
 let isLoginMode = true; 
 let currentUser = null;
+let activeTab = 'tab-profile'; // Permet de savoir quel onglet est ouvert
+
+// 🛠️ LOGIQUE DE NAVIGATION DANS LES ONGLETS
+tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+        // Enlever la classe active de tous les boutons et contenus
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        tabContents.forEach(content => content.classList.remove('active'));
+
+        // Activer l'onglet cliqué
+        button.classList.add('active');
+        activeTab = button.getAttribute('data-target');
+        document.getElementById(activeTab).classList.add('active');
+
+        // Changer le titre de la modale pour faire propre
+        modalTabTitle.textContent = activeTab === 'tab-profile' ? 'Profil utilisateur' : 'Sécurité du compte';
+    });
+});
 
 function rafraichirInterfaceUtilisateur() {
     if (!currentUser) return;
@@ -52,7 +75,7 @@ function rafraichirInterfaceUtilisateur() {
 openSettingsBtn.addEventListener('click', () => { settingsModal.style.display = 'flex'; });
 closeSettingsBtn.addEventListener('click', () => { settingsModal.style.display = 'none'; });
 
-// Vérification de la session au démarrage
+// Session au démarrage
 const savedUser = localStorage.getItem('currentUser');
 if (savedUser && savedUser !== "undefined" && savedUser !== "null") {
     currentUser = JSON.parse(savedUser);
@@ -86,7 +109,6 @@ function lierLienBascule() {
 }
 lierLienBascule();
 
-// Connexion et Inscription
 authSubmitBtn.addEventListener('click', async () => {
     const username = authUsernameInput.value.trim();
     const password = authPasswordInput.value;
@@ -104,32 +126,35 @@ authSubmitBtn.addEventListener('click', async () => {
         if (!response.ok) { 
             alert(data.error); 
         } else {
-            // 🛠️ CORRECTION : Que ce soit Login ou Inscription, on reçoit le profil complet, on le stocke et on ouvre l'app
             currentUser = data.user;
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            
             authScreen.style.display = 'none';
             mainApp.style.display = 'block';
-            
             rafraichirInterfaceUtilisateur();
             socket.emit('demande historique');
         }
     } catch (err) { alert("Erreur serveur."); }
 });
 
-// Enregistrer les modifications
+// Enregistrer les modifications selon l'onglet actif
 saveProfileBtn.addEventListener('click', async () => {
     if (!currentUser) return;
 
     const formData = new FormData();
     formData.append('userId', currentUser.id);
-    formData.append('username', editUsernameInput.value.trim());
-    formData.append('bio', editBioInput.value.trim());
-    formData.append('currentPassword', editCurrentPasswordInput.value);
-    formData.append('newPassword', editNewPasswordInput.value);
-    
-    if (editAvatarFile.files[0]) {
-        formData.append('avatarFile', editAvatarFile.files[0]);
+    formData.append('activeTab', activeTab); // 🛠️ On indique au serveur l'onglet utilisé
+
+    if (activeTab === 'tab-profile') {
+        // Envoi pour l'onglet profil (sans MDP)
+        formData.append('bio', editBioInput.value.trim());
+        if (editAvatarFile.files[0]) {
+            formData.append('avatarFile', editAvatarFile.files[0]);
+        }
+    } else if (activeTab === 'tab-account') {
+        // Envoi pour l'onglet compte (avec vérification de sécurité)
+        formData.append('username', editUsernameInput.value.trim());
+        formData.append('currentPassword', editCurrentPasswordInput.value);
+        formData.append('newPassword', editNewPasswordInput.value);
     }
 
     try {
@@ -144,7 +169,7 @@ saveProfileBtn.addEventListener('click', async () => {
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             rafraichirInterfaceUtilisateur();
             settingsModal.style.display = 'none'; 
-            alert("Profil mis à jour !");
+            alert("Modifications enregistrées !");
             socket.emit('demande historique');
         } else {
             alert(data.error);

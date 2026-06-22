@@ -54,16 +54,32 @@
         #form { display: flex; padding: 20px; background: #2b2d31; gap: 10px; }
         #input { flex-grow: 1; padding: 12px; background: #383a40; border: none; color: #fff; border-radius: 8px; outline: none; }
 
-        /* 🪟 FENÊTRE MODALE PARAMÈTRES DE PROFIL */
+        /* 🪟 MODALE PARAMÈTRES STYLE DISCORD AVEC ONGLETS */
         #settings-modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 999; }
-        .modal-content { background: #313338; width: 100%; max-width: 450px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
-        .modal-header { padding: 20px; background: #2b2d31; color: #fff; font-weight: bold; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f2023;}
+        .modal-content { background: #313338; width: 100%; max-width: 650px; height: 500px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 25px rgba(0,0,0,0.5); display: flex; }
+        
+        /* Menu latéral gauche de la modale */
+        .modal-sidebar { width: 180px; background: #2b2d31; padding: 20px 10px; display: flex; flex-direction: column; gap: 5px; border-right: 1px solid #1f2023; }
+        .modal-tab-btn { background: none; border: none; color: #b5bac1; text-align: left; padding: 10px; border-radius: 4px; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
+        .modal-tab-btn:hover { background: #35373c; color: #dbdee1; }
+        .modal-tab-btn.active { background: #40444b; color: #fff; font-weight: bold; }
+        
+        /* Zone de contenu à droite de la modale */
+        .modal-main { flex-grow: 1; display: flex; flex-direction: column; background: #313338; }
+        .modal-header { padding: 20px; color: #fff; font-weight: bold; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f2023; }
         .close-modal-btn { background: none; border: none; color: #b5bac1; font-size: 1.2rem; cursor: pointer; }
-        .modal-body { padding: 20px; overflow-y: auto; max-height: 70vh; }
+        .modal-body { padding: 20px; flex-grow: 1; overflow-y: auto; }
+        
+        /* Conteneurs des sections cachées/affichées */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
         .modal-body label { display: block; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; color: #b5bac1; margin-bottom: 6px; margin-top: 15px; }
+        .modal-body label:first-child { margin-top: 0; }
         .modal-body input { width: 100%; padding: 10px; background: #1e1f22; border: none; color: #fff; border-radius: 4px; outline: none; }
         .modal-body input[type="file"] { background: none; padding: 5px 0; }
-        .modal-footer { padding: 15px 20px; background: #2b2d31; display: flex; justify-content: space-between; gap: 10px; }
+        
+        .modal-footer { padding: 15px 20px; background: #2b2d31; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1f2023; }
         .save-btn { padding: 10px 20px; background: #248046; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
         .save-btn:hover { background: #1a6535; }
         .logout-modal-btn { padding: 10px 15px; background: #da373c; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
@@ -117,31 +133,46 @@
 
     <div id="settings-modal">
         <div class="modal-content">
-            <div class="modal-header">
-                <span>Paramètres utilisateur</span>
-                <button class="close-modal-btn" id="close-settings-btn">✕</button>
+            <div class="modal-sidebar">
+                <div style="color: #949ba4; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; padding: 0 10px 10px 10px;">Paramètres</div>
+                <button class="modal-tab-btn active" data-target="tab-profile">Mon Profil</button>
+                <button class="modal-tab-btn" data-target="tab-account">Mon Compte</button>
+                <button class="logout-modal-btn" id="logout-btn" style="margin-top: auto; text-align: center;">Déconnexion</button>
             </div>
-            <div class="modal-body">
-                <label>Importer une photo de profil (depuis le PC)</label>
-                <input type="file" id="edit-avatar-file" accept="image/*">
+            
+            <div class="modal-main">
+                <div class="modal-header">
+                    <span id="modal-tab-title">Profil utilisateur</span>
+                    <button class="close-modal-btn" id="close-settings-btn">✕</button>
+                </div>
+                
+                <div class="modal-body">
+                    <div id="tab-profile" class="tab-content active">
+                        <label>Photo de profil (depuis le PC)</label>
+                        <input type="file" id="edit-avatar-file" accept="image/*">
 
-                <label>Changer le Nom d'utilisateur (Pseudo)</label>
-                <input type="text" id="edit-username">
+                        <label>Modifier la Biographie</label>
+                        <input type="text" id="edit-bio" placeholder="Dis-nous en plus sur toi...">
+                    </div>
 
-                <label>Modifier la Biographie</label>
-                <input type="text" id="edit-bio">
+                    <div id="tab-account" class="tab-content">
+                        <label>Changer le Pseudo (Nom d'utilisateur)</label>
+                        <input type="text" id="edit-username">
 
-                <hr style="border: 0; border-top: 1px solid #3f4147; margin-top: 20px;">
+                        <label style="color: #f23f43; margin-top: 25px;">Nouveau mot de passe</label>
+                        <input type="password" id="edit-new-password" placeholder="Laisse vide pour ne pas changer">
 
-                <label style="color: #f23f43;">Nouveau mot de passe (optionnel)</label>
-                <input type="password" id="edit-new-password" placeholder="Laisse vide pour ne pas changer">
+                        <hr style="border: 0; border-top: 1px solid #3f4147; margin: 25px 0 15px 0;">
 
-                <label style="color: #00a8fc;">Mot de passe actuel (Requis pour pseudo/mdp)</label>
-                <input type="password" id="edit-current-password" placeholder="Entre ton mot de passe actuel">
-            </div>
-            <div class="modal-footer">
-                <button class="logout-modal-btn" id="logout-btn">Déconnexion</button>
-                <button class="save-btn" id="save-profile-btn">Enregistrer</button>
+                        <label style="color: #00a8fc;">Mot de passe actuel (Requis pour l'onglet Compte)</label>
+                        <input type="password" id="edit-current-password" placeholder="Entre ton mot de passe actuel pour valider">
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <span style="color: #949ba4; font-size: 0.8rem;">Modifications instantanées</span>
+                    <button class="save-btn" id="save-profile-btn">Enregistrer</button>
+                </div>
             </div>
         </div>
     </div>
