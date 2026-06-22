@@ -3,52 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚡ CyberChat</title>
+    <title>⚡ Mini-Discord</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: #202225; 
-            color: #dcddde;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            background: #1e1f22; 
+            color: #dbdee1;
+            display: flex; justify-content: center; align-items: center; height: 100vh;
         }
-        #chat-container { 
-            width: 100%;
-            max-width: 600px; 
-            height: 80vh;
-            background: #36393f; 
-            display: flex;
-            flex-direction: column;
-            border-radius: 8px; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            overflow: hidden;
+        
+        /* Écran d'accueil (Connexion / Inscription) */
+        .auth-container {
+            background: #313338; padding: 40px; border-radius: 8px; width: 100%; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
-        h2 { background: #2f3136; padding: 15px; text-align: center; font-size: 1.2rem; color: #fff; border-bottom: 1px solid #202225; }
-        #messages { list-style-type: none; padding: 20px; flex-grow: 1; overflow-y: auto; }
-        #messages li { margin-bottom: 15px; line-height: 1.4; }
-        .pseudo-msg { color: #7289da; font-weight: bold; margin-right: 8px; }
-        .text-msg { color: #dcddde; }
-        #typing-indicator { padding: 0 20px 5px 20px; font-size: 0.85rem; color: #b9bbbe; height: 20px; font-style: italic; }
-        #form { display: flex; padding: 20px; background: #2f3136; gap: 10px; }
-        #input { flex-grow: 1; padding: 12px; border: none; background: #40444b; color: #fff; border-radius: 5px; outline: none; }
-        #input::placeholder { color: #72767d; }
-        button { padding: 12px 24px; border: none; background: #5865f2; color: white; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
-        button:hover { background: #4752c4; }
+        .auth-container h2 { text-align: center; color: #fff; margin-bottom: 8px; }
+        .auth-container p { text-align: center; color: #b5bac1; font-size: 0.9rem; margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; color: #b5bac1; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; }
+        .form-group input { width: 100%; padding: 10px; background: #1e1f22; border: none; color: #fff; border-radius: 3px; outline: none; }
+        .auth-btn { width: 100%; padding: 12px; background: #5865f2; color: white; border: none; border-radius: 3px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
+        .auth-btn:hover { background: #4752c4; }
+        .switch-auth { text-align: center; font-size: 0.85rem; color: #949ba4; }
+        .switch-auth a { color: #00a8fc; text-decoration: none; cursor: pointer; }
+        
+        /* Le Chat (Masqué par défaut) */
+        #main-app { display: none; width: 100%; max-width: 800px; height: 80vh; background: #2b2d31; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        #chat-window { display: flex; flex-direction: column; height: 100%; }
+        #messages { list-style: none; padding: 20px; flex-grow: 1; overflow-y: auto; }
+        #messages li { margin-bottom: 12px; }
+        .pseudo { color: #f2f3f5; font-weight: bold; margin-right: 10px; }
+        #form { display: flex; padding: 20px; background: #2b2d31; gap: 10px; }
+        #input { flex-grow: 1; padding: 12px; background: #383a40; border: none; color: #fff; border-radius: 8px; outline: none; }
     </style>
 </head>
 <body>
 
-    <div id="chat-container">
-        <h2>💬 # général</h2>
-        <ul id="messages"></ul>
-        <div id="typing-indicator"></div>
-        <form id="form">
-            <input id="input" autocomplete="off" placeholder="Envoyer un message dans #général" />
-            <button>Envoyer</button>
-        </form>
+    <div id="auth-screen" class="auth-container">
+        <h2 id="auth-title">Ha, te revoilà !</h2>
+        <p id="auth-subtitle">Nous sommes ravis de te revoir !</p>
+        
+        <div class="form-group">
+            <label>Nom d'utilisateur</label>
+            <input type="text" id="auth-username">
+        </div>
+        <div class="form-group">
+            <label>Mot de passe</label>
+            <input type="password" id="auth-password">
+        </div>
+        
+        <button class="auth-btn" id="auth-submit-btn">Se connecter</button>
+        
+        <div class="switch-auth" id="auth-switch-text">
+            Besoin d'un compte ? <a id="link-to-register">S'inscrire</a>
+        </div>
+    </div>
+
+    <div id="main-app">
+        <div id="chat-window">
+            <div style="background: #313338; padding: 15px; border-bottom: 1px solid #1f2023;">
+                <span style="color: #fff; font-weight: bold;">💬 # général</span>
+            </div>
+            <ul id="messages"></ul>
+            <form id="form">
+                <input id="input" autocomplete="off" placeholder="Envoyer un message dans #général" />
+            </form>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

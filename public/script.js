@@ -1,73 +1,122 @@
 const socket = io();
 
+// Éléments DOM Authentification
+const authScreen = document.getElementById('auth-screen');
+const mainApp = document.getElementById('main-app');
+const authTitle = document.getElementById('auth-title');
+const authSubtitle = document.getElementById('auth-subtitle');
+const authUsernameInput = document.getElementById('auth-username');
+const authPasswordInput = document.getElementById('auth-password');
+const authSubmitBtn = document.getElementById('auth-submit-btn');
+const authSwitchText = document.getElementById('auth-switch-text');
+
+// Éléments DOM Chat
 const form = document.getElementById('form');
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
-const typingIndicator = document.getElementById('typing-indicator');
 
-// 1. Demander le pseudo au chargement de la page
-let pseudo = prompt("Choisis ton pseudo pour le salon :") || "Anonyme";
+let isLoginMode = true; 
+let currentUser = null;
 
-// Fonction utilitaire pour ajouter visuellement un message dans la liste
-function afficherMessage(data) {
+// Vérification de la session existante
+const savedUser = localStorage.getItem('currentUser');
+if (savedUser && savedUser !== "undefined") {
+    currentUser = JSON.parse(savedUser);
+    authScreen.style.display = 'none';
+    mainApp.style.display = 'block';
+}
+
+// Fonction pour gérer la bascule inscription/connexion
+function lierLienBascule() {
+    const link = document.getElementById('link-to-register') || document.getElementById('link-to-login');
+    if (link) {
+        link.onclick = (e) => {
+            e.preventDefault();
+            isLoginMode = !isLoginMode;
+            if (isLoginMode) {
+                authTitle.textContent = "Ha, te revoilà !";
+                authSubtitle.textContent = "Nous sommes ravis de te revoir !";
+                authSubmitBtn.textContent = "Se connecter";
+                authSwitchText.innerHTML = `Besoin d'un compte ? <a id="link-to-register">S'inscrire</a>`;
+            } else {
+                authTitle.textContent = "Créer un compte";
+                authSubtitle.textContent = "Rejoins tes potes dès aujourd'hui !";
+                authSubmitBtn.textContent = "S'inscrire";
+                authSwitchText.innerHTML = `Tu as déjà un compte ? <a id="link-to-login">Se connecter</a>`;
+            }
+            lierLienBascule();
+        };
+    }
+}
+lierLienBascule();
+
+// Soumission du formulaire Connexion / Inscription
+authSubmitBtn.addEventListener('click', async () => {
+    const username = authUsernameInput.value.trim();
+    const password = authPasswordInput.value;
+
+    if (!username || !password) return alert("Remplis tous les champs !");
+
+    const endpoint = isLoginMode ? '/api/login' : '/api/register';
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            alert(data.error);
+        } else {
+            if (isLoginMode) {
+                currentUser = data.user;
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                authScreen.style.display = 'none';
+                mainApp.style.display = 'block';
+            } else {
+                alert(data.message);
+                isLoginMode = false; 
+                const link = document.getElementById('link-to-register');
+                if (link) link.click(); // Repasse en mode connexion
+            }
+        }
+    } catch (err) {
+        alert("Erreur de communication avec le serveur.");
+    }
+});
+
+// --- LOGIQUE CHAT ---
+
+function ajouterMessageEcran(data) {
     const item = document.createElement('li');
-    
-    const pseudoSpan = document.createElement('span');
-    pseudoSpan.classList.add('pseudo-msg');
-    pseudoSpan.textContent = data.pseudo;
-
-    const texteSpan = document.createElement('span');
-    texteSpan.classList.add('text-msg');
-    texteSpan.textContent = data.texte;
-
-    item.appendChild(pseudoSpan);
-    item.appendChild(texteSpan);
+    item.innerHTML = `<span class="pseudo">${data.pseudo}</span><span style="color:#dbdee1">${data.texte}</span>`;
     messages.appendChild(item);
     messages.scrollTop = messages.scrollHeight;
 }
 
-// Envoi d'un message
 form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (input.value) {
-        // On envoie un objet complet au serveur
-        socket.emit('chat message', { pseudo: pseudo, texte: input.value });
-        input.value = '';
-        // On prévient le serveur qu'on a fini d'écrire
-        socket.emit('typing', { pseudo: pseudo, isTyping: false });
+    e.preventDefault(); 
+    const messageTexte = input.value.trim();
+    
+    if (messageTexte && currentUser) {
+        socket.emit('chat message', { 
+            pseudo: currentUser.username, 
+            texte: messageTexte 
+        });
+        input.value = ''; 
     }
 });
 
-// Réception d'un message isolé
 socket.on('chat message', (data) => {
-    afficherMessage(data);
+    ajouterMessageEcran(data);
 });
 
-// Réception de l'historique complet
 socket.on('chargement historique', (messagesHistorique) => {
     messages.innerHTML = '';
-    messagesHistorique.forEach((data) => afficherMessage(data));
-});
-
-// --- Gestion du "En train d'écrire..." ---
-let timeout;
-
-input.addEventListener('input', () => {
-    // On prévient le serveur qu'on écrit
-    socket.emit('typing', { pseudo: pseudo, isTyping: true });
-    
-    // Si l'utilisateur arrête de taper pendant 1.5s, on retire l'indicateur
-    clearTimeout(timeout);
-    timeout = setTimeout(() => {
-        socket.emit('typing', { pseudo: pseudo, isTyping: false });
-    }, 1500);
-});
-
-// Écouter les autres utilisateurs qui écrivent
-socket.on('typing', (data) => {
-    if (data.isTyping) {
-        typingIndicator.textContent = `${data.pseudo} est en train d'écrire...`;
-    } else {
-        typingIndicator.textContent = '';
-    }
+    messagesHistorique.forEach((data) => {
+        ajouterMessageEcran(data);
+    });
 });

@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "start": "node server.js"
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
@@ -13,5 +13,10 @@
     "express": "^5.2.1",
     "nodemon": "^3.1.14",
     "socket.io": "^4.8.3"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^6.0.1"
   }
 }
