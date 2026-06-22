@@ -1,6 +1,6 @@
 const socket = io();
 
-// DOM Authentification
+// DOM Éléments
 const authScreen = document.getElementById('auth-screen');
 const mainApp = document.getElementById('main-app');
 const authTitle = document.getElementById('auth-title');
@@ -10,7 +10,6 @@ const authPasswordInput = document.getElementById('auth-password');
 const authSubmitBtn = document.getElementById('auth-submit-btn');
 const authSwitchText = document.getElementById('auth-switch-text');
 
-// DOM Chat
 const form = document.getElementById('form');
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
@@ -19,15 +18,14 @@ const dmsList = document.getElementById('dms-list');
 const globalChannelBtn = document.getElementById('global-channel-btn');
 const globalBadgeContainer = document.getElementById('global-badge-container');
 const typingIndicator = document.getElementById('typing-indicator');
+const rightSidebar = document.getElementById('right-sidebar');
 
-// Mini-Profil
 const miniProfileCard = document.getElementById('mini-profile-card');
 const mpCardAvatar = document.getElementById('mp-card-avatar');
 const mpCardUsername = document.getElementById('mp-card-username');
 const mpCardBio = document.getElementById('mp-card-bio');
 const mpCardActions = document.getElementById('mp-card-actions');
 
-// Paramètres
 const settingsModal = document.getElementById('settings-modal');
 const openSettingsBtn = document.getElementById('open-settings-btn');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
@@ -40,12 +38,9 @@ let isLoginMode = true;
 let currentUser = null;
 let currentChatTarget = { type: 'global', id: null, name: 'général' }; 
 let activeTab = 'tab-profile';
-
-// Stockage local des messages non lus
 let compteursNonLus = { global: 0 }; 
-let listeAmisGlobale = []; 
 
-// Gestion du clic sur le salon Général
+// Clic sur le salon général
 globalChannelBtn.addEventListener('click', () => {
     document.querySelectorAll('.clickable-item').forEach(i => i.classList.remove('active'));
     globalChannelBtn.classList.add('active');
@@ -56,69 +51,10 @@ globalChannelBtn.addEventListener('click', () => {
     
     currentChatTarget = { type: 'global', id: null, name: 'général' };
     chatHeader.textContent = "💬 # général";
+    
     socket.emit('demande historique', currentChatTarget);
+    socket.emit('demande liste membres', currentChatTarget);
 });
-
-// Fermer le mini-profil au clic extérieur
-document.addEventListener('click', (e) => {
-    if (!miniProfileCard.contains(e.target) && !e.target.classList.contains('avatar-chat') && !e.target.classList.contains('pseudo') && !e.target.closest('#footer-profile-click')) {
-        miniProfileCard.style.display = 'none';
-    }
-});
-
-// Afficher la carte "Mini Profil"
-function ouvrirMiniProfil(targetUser, mouseEvent) {
-    mpCardAvatar.src = targetUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${targetUser.username}`;
-    mpCardUsername.textContent = targetUser.username;
-    mpCardBio.textContent = targetUser.bio || "Pas de biographie pour le moment.";
-    
-    mpCardActions.innerHTML = '';
-    
-    if (currentUser && targetUser.id !== currentUser.id) {
-        if (targetUser.isFriend) {
-            const mpBtn = document.createElement('button');
-            mpBtn.className = "profile-action-btn btn-primary";
-            mpBtn.textContent = "Message Privé";
-            mpBtn.onclick = () => {
-                ouvrirDiscussionPrivee(targetUser);
-                miniProfileCard.style.display = 'none';
-            };
-            mpCardActions.appendChild(mpBtn);
-        } else if (targetUser.hasSentRequest) {
-            const acceptBtn = document.createElement('button');
-            acceptBtn.className = "profile-action-btn btn-primary";
-            acceptBtn.textContent = "Accepter l'invitation";
-            acceptBtn.onclick = () => {
-                socket.emit('action ami', { action: 'accept', targetId: targetUser.id });
-                miniProfileCard.style.display = 'none';
-            };
-            mpCardActions.appendChild(acceptBtn);
-        } else if (targetUser.hasReceivedRequest) {
-            const pendingBtn = document.createElement('button');
-            pendingBtn.className = "profile-action-btn btn-secondary";
-            pendingBtn.textContent = "Demande en attente...";
-            pendingBtn.disabled = true;
-            mpCardActions.appendChild(pendingBtn);
-        } else {
-            const addBtn = document.createElement('button');
-            addBtn.className = "profile-action-btn btn-primary";
-            addBtn.textContent = "Ajouter en ami";
-            addBtn.onclick = () => {
-                socket.emit('action ami', { action: 'request', targetId: targetUser.id });
-                miniProfileCard.style.display = 'none';
-            };
-            mpCardActions.appendChild(addBtn);
-        }
-    }
-
-    miniProfileCard.style.display = 'block';
-    let top = mouseEvent.clientY;
-    let left = mouseEvent.clientX + 15;
-    if (top + miniProfileCard.offsetHeight > window.innerHeight) top = window.innerHeight - miniProfileCard.offsetHeight - 15;
-    if (left + miniProfileCard.offsetWidth > window.innerWidth) left = mouseEvent.clientX - miniProfileCard.offsetWidth - 15;
-    miniProfileCard.style.top = `${top}px`;
-    miniProfileCard.style.left = `${left}px`;
-}
 
 function ouvrirDiscussionPrivee(friend) {
     document.querySelectorAll('.clickable-item').forEach(i => i.classList.remove('active'));
@@ -135,28 +71,76 @@ function ouvrirDiscussionPrivee(friend) {
     
     currentChatTarget = { type: 'dm', id: friend.id, name: friend.username };
     chatHeader.textContent = `🔒 MP avec @${friend.username}`;
+    
     socket.emit('demande historique', currentChatTarget);
+    socket.emit('demande liste membres', currentChatTarget);
 }
 
-// Session et Amis
+// Clic extérieur pour fermer le profil
+document.addEventListener('click', (e) => {
+    if (!miniProfileCard.contains(e.target) && !e.target.classList.contains('avatar-chat') && !e.target.classList.contains('pseudo') && !e.target.closest('#footer-profile-click') && !e.target.closest('.member-item')) {
+        miniProfileCard.style.display = 'none';
+    }
+});
+
+function ouvrirMiniProfil(targetUser, mouseEvent) {
+    mpCardAvatar.src = targetUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${targetUser.username}`;
+    mpCardUsername.textContent = targetUser.username;
+    mpCardBio.textContent = targetUser.bio || "Pas de biographie pour le moment.";
+    mpCardActions.innerHTML = '';
+    
+    if (currentUser && targetUser.id !== currentUser.id) {
+        if (targetUser.isFriend) {
+            const mpBtn = document.createElement('button');
+            mpBtn.className = "profile-action-btn btn-primary";
+            mpBtn.textContent = "Message Privé";
+            mpBtn.onclick = () => { ouvrirDiscussionPrivee(targetUser); miniProfileCard.style.display = 'none'; };
+            mpCardActions.appendChild(mpBtn);
+        } else if (targetUser.hasSentRequest) {
+            const acceptBtn = document.createElement('button');
+            acceptBtn.className = "profile-action-btn btn-primary";
+            acceptBtn.textContent = "Accepter l'invitation";
+            acceptBtn.onclick = () => { socket.emit('action ami', { action: 'accept', targetId: targetUser.id }); miniProfileCard.style.display = 'none'; };
+            mpCardActions.appendChild(acceptBtn);
+        } else if (targetUser.hasReceivedRequest) {
+            const pendingBtn = document.createElement('button');
+            pendingBtn.className = "profile-action-btn btn-secondary";
+            pendingBtn.textContent = "Demande en attente...";
+            pendingBtn.disabled = true;
+            mpCardActions.appendChild(pendingBtn);
+        } else {
+            const addBtn = document.createElement('button');
+            addBtn.className = "profile-action-btn btn-primary";
+            addBtn.textContent = "Ajouter en ami";
+            addBtn.onclick = () => { socket.emit('action ami', { action: 'request', targetId: targetUser.id }); miniProfileCard.style.display = 'none'; };
+            mpCardActions.appendChild(addBtn);
+        }
+    }
+    miniProfileCard.style.display = 'block';
+    let top = mouseEvent.clientY;
+    let left = mouseEvent.clientX + 15;
+    if (top + miniProfileCard.offsetHeight > window.innerHeight) top = window.innerHeight - miniProfileCard.offsetHeight - 15;
+    if (left + miniProfileCard.offsetWidth > window.innerWidth) left = mouseEvent.clientX - miniProfileCard.offsetWidth - 15;
+    miniProfileCard.style.top = `${top}px`;
+    miniProfileCard.style.left = `${left}px`;
+}
+
 function initialiserSession() {
     socket.emit('authentification-socket', currentUser.id);
     rafraichirInterfaceUtilisateur();
     socket.emit('demande historique', currentChatTarget);
     socket.emit('demande liste amis');
+    socket.emit('demande liste membres', currentChatTarget);
 }
 
+// Mise à jour de la liste de gauche (Amis en MP)
 socket.on('mise a jour amis', (amisData) => {
-    listeAmisGlobale = amisData;
     dmsList.innerHTML = '';
     amisData.forEach(friend => {
         if (!compteursNonLus[friend.id]) compteursNonLus[friend.id] = 0;
-        
         const li = document.createElement('li');
         li.className = "clickable-item";
         li.id = `dm-${friend.id}`;
-        
-        // Structure interne adaptée pour injecter le badge à droite si besoin
         li.innerHTML = `
             <div class="item-content">
                 <img class="sidebar-avatar" src="${friend.avatar_url}" alt="">
@@ -167,7 +151,6 @@ socket.on('mise a jour amis', (amisData) => {
         li.onclick = () => ouvrirDiscussionPrivee(friend);
         dmsList.appendChild(li);
         
-        // Restaurer le badge si l'élément est reconstruit à la volée alors qu'il y a des non-lus
         if(compteursNonLus[friend.id] > 0) {
             li.classList.add('unread');
             document.getElementById(`badge-container-${friend.id}`).innerHTML = `<span class="badge-notification" id="badge-${friend.id}">${compteursNonLus[friend.id]}</span>`;
@@ -175,7 +158,48 @@ socket.on('mise a jour amis', (amisData) => {
     });
 });
 
-// Clics profils sur les messages
+// 🔴 RENDER DU PANNEAU DROIT (Inspiré par image_9ac440.png)
+socket.on('mise a jour membres', (membres) => {
+    rightSidebar.innerHTML = '';
+
+    // Filtrer par statuts
+    const enLigne = membres.filter(m => m.enLigne);
+    const horsLigne = membres.filter(m => !m.enLigne);
+
+    const genererGroupeHTML = (titre, liste) => {
+        if (liste.length === 0) return;
+        
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'member-group-title';
+        titleDiv.textContent = `${titre} — ${liste.length}`;
+        rightSidebar.appendChild(titleDiv);
+
+        liste.forEach(m => {
+            const item = document.createElement('div');
+            item.className = `member-item ${m.enLigne ? '' : 'member-offline'}`;
+            item.innerHTML = `
+                <div class="avatar-container">
+                    <img class="member-avatar" src="${m.avatar_url}" alt="">
+                    <div class="status-dot ${m.enLigne ? 'status-online' : 'status-offline'}"></div>
+                </div>
+                <div class="member-info">
+                    <span class="member-name">${m.username}</span>
+                    <span class="member-subtext">${m.enLigne ? 'En ligne' : 'Hors ligne'}</span>
+                </div>
+            `;
+            item.onclick = (e) => {
+                socket.emit('demande infos profil', m.id);
+                socket.once('reponse infos profil', (userProfile) => { ouvrirMiniProfil(userProfile, e); });
+            };
+            rightSidebar.appendChild(item);
+        });
+    };
+
+    genererGroupeHTML('En ligne', enLigne);
+    genererGroupeHTML('Hors ligne', horsLigne);
+});
+
+// Clics sur les pseudos / avatars du chat
 messages.addEventListener('click', (e) => {
     if (e.target.classList.contains('avatar-chat') || e.target.classList.contains('pseudo')) {
         const uId = e.target.getAttribute('data-uid');
@@ -193,24 +217,16 @@ document.getElementById('footer-profile-click').onclick = (e) => {
     }
 };
 
-// ⌨️ TRANSMISSION DE L'ÉTAT "EN TRAIN D'ÉCRIRE"
+// Indicateurs d'écriture
 let typingTimeout;
 input.addEventListener('input', () => {
     if (!currentUser) return;
-    socket.emit('typing-start', {
-        pseudo: currentUser.username,
-        target: currentChatTarget
-    });
-    
+    socket.emit('typing-start', { pseudo: currentUser.username, target: currentChatTarget });
     clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => {
-        socket.emit('typing-stop', { target: currentChatTarget });
-    }, 2000); // S'arrête après 2 secondes sans presser de touche
+    typingTimeout = setTimeout(() => { socket.emit('typing-stop', { target: currentChatTarget }); }, 2000);
 });
 
-// Écouteurs de l'indicateur d'écriture distribué
 socket.on('typing-start', (data) => {
-    // Vérification contextuelle : afficher uniquement si on regarde le même salon/MP
     if (currentChatTarget.type === 'global' && data.isGlobal) {
         typingIndicator.textContent = `${data.pseudo} est en train d'écrire...`;
     } else if (currentChatTarget.type === 'dm' && !data.isGlobal && data.senderId === currentChatTarget.id) {
@@ -218,11 +234,8 @@ socket.on('typing-start', (data) => {
     }
 });
 
-socket.on('typing-stop', () => {
-    typingIndicator.textContent = '';
-});
+socket.on('typing-stop', () => { typingIndicator.textContent = ''; });
 
-// Envoi d'un message
 form.addEventListener('submit', (e) => {
     e.preventDefault();
     const texte = input.value.trim();
@@ -233,7 +246,7 @@ form.addEventListener('submit', (e) => {
     }
 });
 
-// 🚨 RÉCEPTION DES MESSAGES ET GESTION DES BADGES DE NOTIFICATIONS (image_90d69f.png)
+// Réception des messages
 socket.on('chat message', (data) => {
     const estSurLeChatActuel = (currentChatTarget.type === 'global' && data.isGlobal) || 
                                (currentChatTarget.type === 'dm' && !data.isGlobal && (data.senderId === currentChatTarget.id || data.receiverId === currentChatTarget.id));
@@ -241,23 +254,18 @@ socket.on('chat message', (data) => {
     if (estSurLeChatActuel) {
         ajouterMessageEcran(data);
     } else {
-        // Le message arrive en arrière-plan, on crée la notification visuelle (Gras + Nombre)
         if (data.isGlobal) {
             compteursNonLus.global++;
             globalChannelBtn.classList.add('unread');
             globalBadgeContainer.innerHTML = `<span class="badge-notification">${compteursNonLus.global}</span>`;
         } else {
-            // C'est un message privé (MP)
             const expediteurId = data.senderId;
             compteursNonLus[expediteurId] = (compteursNonLus[expediteurId] || 0) + 1;
-            
             const dmItem = document.getElementById(`dm-${expediteurId}`);
             if (dmItem) {
                 dmItem.classList.add('unread');
                 const container = document.getElementById(`badge-container-${expediteurId}`);
-                if (container) {
-                    container.innerHTML = `<span class="badge-notification" id="badge-${expediteurId}">${compteursNonLus[expediteurId]}</span>`;
-                }
+                if (container) container.innerHTML = `<span class="badge-notification" id="badge-${expediteurId}">${compteursNonLus[expediteurId]}</span>`;
             }
         }
     }
@@ -282,14 +290,14 @@ function ajouterMessageEcran(data) {
     messages.scrollTop = messages.scrollHeight;
 }
 
-// Logique Inscription / Connexion Bascule
+// Inscription / Connexion Autre
 function lierLienBascule() {
     const linkToRegister = document.getElementById('link-to-register');
     const linkToLogin = document.getElementById('link-to-login');
     if (linkToRegister) {
         linkToRegister.onclick = (e) => {
             e.preventDefault(); isLoginMode = false;
-            authTitle.textContent = "Créer un compte"; authSubtitle.textContent = "Inscris-toi pour commencer à discuter !";
+            authTitle.textContent = "Créer un compte"; authSubtitle.textContent = "Inscris-toi pour commencer !";
             authSubmitBtn.textContent = "S'inscrire"; authSwitchText.innerHTML = `Tu as déjà un compte ? <a id="link-to-login">Se connecter</a>`;
             lierLienBascule();
         };
@@ -297,7 +305,7 @@ function lierLienBascule() {
     if (linkToLogin) {
         linkToLogin.onclick = (e) => {
             e.preventDefault(); isLoginMode = true;
-            authTitle.textContent = "Ha, te revoilà !"; authSubtitle.textContent = "We are glad to see you again !";
+            authTitle.textContent = "Ha, te revoilà !"; authSubtitle.textContent = "Nous sommes ravis de te revoir !";
             authSubmitBtn.textContent = "Se connecter"; authSwitchText.innerHTML = `Besoin d'un compte ? <a id="link-to-register">S'inscrire</a>`;
             lierLienBascule();
         };
