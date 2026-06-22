@@ -28,7 +28,7 @@
         #main-app { display: none; width: 100%; max-width: 1200px; height: 85vh; background: #2b2d31; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
         .app-layout { display: flex; height: 100%; }
         
-        /* Panneau de Gauche (Salons + MP) */
+        /* Panneau de Gauche */
         #left-sidebar { width: 240px; background: #2f3136; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid #1f2023; flex-shrink: 0; }
         .sidebar-scroll { flex-grow: 1; overflow-y: auto; padding: 15px; }
         .sidebar-section-title { color: #949ba4; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; margin-top: 15px; }
@@ -46,14 +46,22 @@
         .badge-notification { background-color: #f23f43; color: white; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; border-radius: 10px; min-width: 18px; text-align: center; display: inline-block; }
         
         /* Pied de page utilisateur */
-        .user-footer { background: #232428; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
-        .user-footer-info { display: flex; align-items: center; gap: 8px; overflow: hidden; cursor: pointer; }
-        .footer-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+        .user-footer { background: #232428; padding: 10px; display: flex; align-items: center; justify-content: space-between; position: relative; }
+        .user-footer-info { display: flex; align-items: center; gap: 8px; overflow: hidden; cursor: pointer; padding: 4px; border-radius: 4px; width: 80%; }
+        .user-footer-info:hover { background: #35373c; }
+        .footer-avatar-wrapper { position: relative; width: 32px; height: 32px; flex-shrink: 0; }
+        .footer-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
         .footer-username { color: #fff; font-size: 0.85rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .gear-btn { background: none; border: none; color: #b9bbbe; cursor: pointer; font-size: 1.2rem; padding: 4px; border-radius: 4px; }
         .gear-btn:hover { background: #35373c; color: #dcddde; }
 
-        /* Zone de Chat Principale */
+        /* Menu sélecteur de statut */
+        #status-picker-menu { display: none; position: absolute; bottom: 55px; left: 10px; background: #111214; border-radius: 4px; padding: 6px; width: 180px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 1100; }
+        .status-option { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 2px; cursor: pointer; font-size: 0.85rem; color: #dbdee1; }
+        .status-option:hover { background: #4752c4; color: #fff; }
+        .status-option .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+        /* Zone de Chat */
         #chat-window { flex-grow: 1; display: flex; flex-direction: column; height: 100%; background: #313338; }
         #chat-header { background: #313338; padding: 15px; border-bottom: 1px solid #1f2023; color: #fff; font-weight: bold; }
         #messages { list-style: none; padding: 20px; flex-grow: 1; overflow-y: auto; }
@@ -69,7 +77,7 @@
         #form { display: flex; padding: 20px; background: #313338; gap: 10px; }
         #input { flex-grow: 1; padding: 12px; background: #383a40; border: none; color: #fff; border-radius: 8px; outline: none; }
 
-        /* 🔴 Panneau de Droite (Membres & Statuts inspiré de image_9ac440.png) */
+        /* Panneau droit (Membres) */
         #right-sidebar { width: 240px; background: #2f3136; border-left: 1px solid #1f2023; padding: 20px 10px; overflow-y: auto; flex-shrink: 0; }
         .member-group-title { color: #949ba4; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; margin-bottom: 10px; margin-top: 15px; }
         .member-group-title:first-child { margin-top: 0; }
@@ -78,9 +86,11 @@
         .avatar-container { position: relative; width: 32px; height: 32px; }
         .member-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
         
-        /* Petite pastille de statut */
+        /* Pastilles de Statut */
         .status-dot { position: absolute; bottom: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #2f3136; }
         .status-online { background-color: #23a55a; }
+        .status-idle { background-color: #f0b232; }
+        .status-dnd { background-color: #f23f43; }
         .status-offline { background-color: #80848e; }
         
         .member-info { display: flex; flex-direction: column; overflow: hidden; }
@@ -102,6 +112,8 @@
         .btn-primary:hover { background: #4752c4; }
         .btn-secondary { background: #4f545c; color: #fff; }
         .btn-secondary:hover { background: #686d73; }
+        .btn-danger { background: #da373c; color: #fff; }
+        .btn-danger:hover { background: #a92b2f; }
 
         /* MODALE PARAMÈTRES */
         #settings-modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 999; }
@@ -121,7 +133,7 @@
         .modal-body input { width: 100%; padding: 10px; background: #1e1f22; border: none; color: #fff; border-radius: 4px; outline: none; }
         .modal-footer { padding: 15px 20px; background: #2b2d31; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1f2023; }
         .save-btn { padding: 10px 20px; background: #248046; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .logout-modal-btn { padding: 10px 15px; background: #da373c; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .logout-modal-btn { padding: 10px 15px; background: #4f545c; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -142,10 +154,9 @@
         <div class="switch-auth" id="auth-switch-text">Besoin d'un compte ? <a id="link-to-register">S'inscrire</a></div>
     </div>
 
-    <!-- APPLICATION MINI DISCORD -->
+    <!-- APPLICATION -->
     <div id="main-app">
         <div class="app-layout">
-            <!-- Panneau gauche (Canaux / Amis) -->
             <div id="left-sidebar">
                 <div class="sidebar-scroll">
                     <div class="sidebar-section-title">Salons textuels</div>
@@ -155,20 +166,28 @@
                             <div id="global-badge-container"></div>
                         </li>
                     </ul>
-
                     <div class="sidebar-section-title">Messages privés</div>
                     <ul class="item-list" id="dms-list"></ul>
                 </div>
+                
                 <div class="user-footer">
                     <div class="user-footer-info" id="footer-profile-click">
-                        <img id="footer-user-avatar" class="footer-avatar" src="" alt="">
+                        <div class="footer-avatar-wrapper">
+                            <img id="footer-user-avatar" class="footer-avatar" src="" alt="">
+                            <div id="footer-status-dot" class="status-dot status-online"></div>
+                        </div>
                         <div id="footer-user-username" class="footer-username">@Pseudo</div>
                     </div>
                     <button class="gear-btn" id="open-settings-btn">⚙️</button>
+
+                    <div id="status-picker-menu">
+                        <div class="status-option" data-status="online"><div class="dot status-online"></div>En ligne</div>
+                        <div class="status-option" data-status="idle"><div class="dot status-idle"></div>Absent</div>
+                        <div class="status-option" data-status="dnd"><div class="dot status-dnd"></div>Ne pas déranger</div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Zone centrale de chat -->
             <div id="chat-window">
                 <div id="chat-header">💬 # général</div>
                 <ul id="messages"></ul>
@@ -178,7 +197,6 @@
                 </form>
             </div>
 
-            <!-- 🔴 Panneau droit (Membres & Statuts adaptatif) -->
             <div id="right-sidebar"></div>
         </div>
     </div>
@@ -224,6 +242,11 @@
                         <input type="password" id="edit-new-password">
                         <label style="color: #00a8fc; margin-top: 15px;">Mot de passe actuel</label>
                         <input type="password" id="edit-current-password">
+                        
+                        <hr style="border: 0; border-top: 1px solid #1f2023; margin: 25px 0;">
+                        <label style="color: #f23f43;">Zone dangereuse</label>
+                        <p style="font-size: 0.8rem; color: #949ba4; margin-bottom: 10px;">La suppression de votre compte est définitive et effacera toutes vos données.</p>
+                        <button class="profile-action-btn btn-danger" id="delete-account-btn" style="width: auto; padding: 10px 20px;">Supprimer le compte</button>
                     </div>
                 </div>
                 <div class="modal-footer">

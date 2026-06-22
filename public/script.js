@@ -31,34 +31,35 @@ const openSettingsBtn = document.getElementById('open-settings-btn');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
 const saveProfileBtn = document.getElementById('save-profile-btn');
 const logoutBtn = document.getElementById('logout-btn');
+const deleteAccountBtn = document.getElementById('delete-account-btn');
 const footerUserAvatar = document.getElementById('footer-user-avatar');
 const footerUserUsername = document.getElementById('footer-user-username');
+const footerStatusDot = document.getElementById('footer-status-dot');
+const statusPickerMenu = document.getElementById('status-picker-menu');
 
 let isLoginMode = true; 
 let currentUser = null;
 let currentChatTarget = { type: 'global', id: null, name: 'général' }; 
 let activeTab = 'tab-profile';
 let compteursNonLus = { global: 0 }; 
+let statutActuel = localStorage.getItem('userStatus') || 'online';
 
-// Clic sur le salon général
-globalChannelBtn.addEventListener('click', () => {
+function basculerSurGeneral() {
     document.querySelectorAll('.clickable-item').forEach(i => i.classList.remove('active'));
     globalChannelBtn.classList.add('active');
     globalChannelBtn.classList.remove('unread');
-    
     compteursNonLus.global = 0;
     globalBadgeContainer.innerHTML = '';
-    
     currentChatTarget = { type: 'global', id: null, name: 'général' };
     chatHeader.textContent = "💬 # général";
-    
     socket.emit('demande historique', currentChatTarget);
     socket.emit('demande liste membres', currentChatTarget);
-});
+}
+
+globalChannelBtn.addEventListener('click', basculerSurGeneral);
 
 function ouvrirDiscussionPrivee(friend) {
     document.querySelectorAll('.clickable-item').forEach(i => i.classList.remove('active'));
-    
     let dmItem = document.getElementById(`dm-${friend.id}`);
     if (dmItem) {
         dmItem.classList.add('active');
@@ -66,20 +67,44 @@ function ouvrirDiscussionPrivee(friend) {
         const badge = document.getElementById(`badge-${friend.id}`);
         if(badge) badge.remove();
     }
-    
     compteursNonLus[friend.id] = 0;
-    
     currentChatTarget = { type: 'dm', id: friend.id, name: friend.username };
     chatHeader.textContent = `🔒 MP avec @${friend.username}`;
-    
     socket.emit('demande historique', currentChatTarget);
     socket.emit('demande liste membres', currentChatTarget);
 }
 
-// Clic extérieur pour fermer le profil
+document.getElementById('footer-profile-click').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (e.target.classList.contains('footer-avatar') || e.target.id === 'footer-status-dot') {
+        statusPickerMenu.style.display = statusPickerMenu.style.display === 'block' ? 'none' : 'block';
+        miniProfileCard.style.display = 'none';
+    } else {
+        if(currentUser) {
+            socket.emit('demande infos profil', currentUser.id);
+            socket.once('reponse infos profil', (userProfile) => { ouvrirMiniProfil(userProfile, e); });
+        }
+        statusPickerMenu.style.display = 'none';
+    }
+});
+
+document.querySelectorAll('.status-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+        const newStatus = opt.getAttribute('data-status');
+        statutActuel = newStatus;
+        localStorage.setItem('userStatus', newStatus);
+        footerStatusDot.className = `status-dot status-${newStatus}`;
+        socket.emit('changement statut', newStatus);
+        statusPickerMenu.style.display = 'none';
+    });
+});
+
 document.addEventListener('click', (e) => {
     if (!miniProfileCard.contains(e.target) && !e.target.classList.contains('avatar-chat') && !e.target.classList.contains('pseudo') && !e.target.closest('#footer-profile-click') && !e.target.closest('.member-item')) {
         miniProfileCard.style.display = 'none';
+    }
+    if (!statusPickerMenu.contains(e.target)) {
+        statusPickerMenu.style.display = 'none';
     }
 });
 
@@ -127,13 +152,15 @@ function ouvrirMiniProfil(targetUser, mouseEvent) {
 
 function initialiserSession() {
     socket.emit('authentification-socket', currentUser.id);
+    socket.emit('changement statut', statutActuel);
+    footerStatusDot.className = `status-dot status-${statutActuel}`;
+
     rafraichirInterfaceUtilisateur();
     socket.emit('demande historique', currentChatTarget);
     socket.emit('demande liste amis');
     socket.emit('demande liste membres', currentChatTarget);
 }
 
-// Mise à jour de la liste de gauche (Amis en MP)
 socket.on('mise a jour amis', (amisData) => {
     dmsList.innerHTML = '';
     amisData.forEach(friend => {
@@ -141,6 +168,12 @@ socket.on('mise a jour amis', (amisData) => {
         const li = document.createElement('li');
         li.className = "clickable-item";
         li.id = `dm-${friend.id}`;
+        
+        // Si on était déjà dessus, on garde l'état actif visuel
+        if(currentChatTarget.type === 'dm' && currentChatTarget.id === friend.id) {
+            li.classList.add('active');
+        }
+
         li.innerHTML = `
             <div class="item-content">
                 <img class="sidebar-avatar" src="${friend.avatar_url}" alt="">
@@ -151,24 +184,31 @@ socket.on('mise a jour amis', (amisData) => {
         li.onclick = () => ouvrirDiscussionPrivee(friend);
         dmsList.appendChild(li);
         
-        if(compteursNonLus[friend.id] > 0) {
+        if(compteursNonLus[friend.id] > 0 && currentChatTarget.id !== friend.id) {
             li.classList.add('unread');
             document.getElementById(`badge-container-${friend.id}`).innerHTML = `<span class="badge-notification" id="badge-${friend.id}">${compteursNonLus[friend.id]}</span>`;
         }
     });
 });
 
-// 🔴 RENDER DU PANNEAU DROIT (Inspiré par image_9ac440.png)
+// ÉCOUTE DE SUPPRESSION D'UN COMPTE DISTANT
+socket.on('compte supprime distant', (deletedUserId) => {
+    // Si on est actuellement en train de lui parler en MP, on ferme de force la fenêtre de chat vide
+    if(currentChatTarget.type === 'dm' && currentChatTarget.id === parseInt(deletedUserId)) {
+        basculerSurGeneral();
+    }
+    // Demander la mise à jour propre des listes
+    socket.emit('demande liste amis');
+    socket.emit('demande liste membres', currentChatTarget);
+});
+
 socket.on('mise a jour membres', (membres) => {
     rightSidebar.innerHTML = '';
-
-    // Filtrer par statuts
-    const enLigne = membres.filter(m => m.enLigne);
-    const horsLigne = membres.filter(m => !m.enLigne);
+    const enLigne = membres.filter(m => m.statut && m.statut !== 'offline');
+    const horsLigne = membres.filter(m => !m.statut || m.statut === 'offline');
 
     const genererGroupeHTML = (titre, liste) => {
         if (liste.length === 0) return;
-        
         const titleDiv = document.createElement('div');
         titleDiv.className = 'member-group-title';
         titleDiv.textContent = `${titre} — ${liste.length}`;
@@ -176,15 +216,22 @@ socket.on('mise a jour membres', (membres) => {
 
         liste.forEach(m => {
             const item = document.createElement('div');
-            item.className = `member-item ${m.enLigne ? '' : 'member-offline'}`;
+            const statusClass = m.statut || 'offline';
+            item.className = `member-item ${statusClass === 'offline' ? 'member-offline' : ''}`;
+            
+            let statutTexte = 'Hors ligne';
+            if (statusClass === 'online') statutTexte = 'En ligne';
+            if (statusClass === 'idle') statutTexte = 'Absent';
+            if (statusClass === 'dnd') statutTexte = 'Ne pas déranger';
+
             item.innerHTML = `
                 <div class="avatar-container">
                     <img class="member-avatar" src="${m.avatar_url}" alt="">
-                    <div class="status-dot ${m.enLigne ? 'status-online' : 'status-offline'}"></div>
+                    <div class="status-dot status-${statusClass}"></div>
                 </div>
                 <div class="member-info">
                     <span class="member-name">${m.username}</span>
-                    <span class="member-subtext">${m.enLigne ? 'En ligne' : 'Hors ligne'}</span>
+                    <span class="member-subtext">${statutTexte}</span>
                 </div>
             `;
             item.onclick = (e) => {
@@ -194,12 +241,10 @@ socket.on('mise a jour membres', (membres) => {
             rightSidebar.appendChild(item);
         });
     };
-
-    genererGroupeHTML('En ligne', enLigne);
+    genererGroupeHTML('Disponibles', enLigne);
     genererGroupeHTML('Hors ligne', horsLigne);
 });
 
-// Clics sur les pseudos / avatars du chat
 messages.addEventListener('click', (e) => {
     if (e.target.classList.contains('avatar-chat') || e.target.classList.contains('pseudo')) {
         const uId = e.target.getAttribute('data-uid');
@@ -210,14 +255,6 @@ messages.addEventListener('click', (e) => {
     }
 });
 
-document.getElementById('footer-profile-click').onclick = (e) => {
-    if(currentUser) {
-        socket.emit('demande infos profil', currentUser.id);
-        socket.once('reponse infos profil', (userProfile) => { ouvrirMiniProfil(userProfile, e); });
-    }
-};
-
-// Indicateurs d'écriture
 let typingTimeout;
 input.addEventListener('input', () => {
     if (!currentUser) return;
@@ -246,11 +283,9 @@ form.addEventListener('submit', (e) => {
     }
 });
 
-// Réception des messages
 socket.on('chat message', (data) => {
     const estSurLeChatActuel = (currentChatTarget.type === 'global' && data.isGlobal) || 
                                (currentChatTarget.type === 'dm' && !data.isGlobal && (data.senderId === currentChatTarget.id || data.receiverId === currentChatTarget.id));
-    
     if (estSurLeChatActuel) {
         ajouterMessageEcran(data);
     } else {
@@ -290,7 +325,6 @@ function ajouterMessageEcran(data) {
     messages.scrollTop = messages.scrollHeight;
 }
 
-// Inscription / Connexion Autre
 function lierLienBascule() {
     const linkToRegister = document.getElementById('link-to-register');
     const linkToLogin = document.getElementById('link-to-login');
@@ -341,7 +375,26 @@ document.querySelectorAll('.modal-tab-btn').forEach(b => {
 });
 openSettingsBtn.onclick = () => settingsModal.style.display = 'flex';
 closeSettingsBtn.onclick = () => settingsModal.style.display = 'none';
-logoutBtn.onclick = () => { localStorage.clear(); location.reload(); };
+logoutBtn.onclick = () => { socket.disconnect(); localStorage.clear(); location.reload(); };
+
+deleteAccountBtn.onclick = async () => {
+    if (confirm("⚠️ Êtes-vous sûr de vouloir supprimer définitivement votre compte ? Cette action est irréversible.")) {
+        const res = await fetch('/api/profile/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: currentUser.id })
+        });
+        if (res.ok) {
+            alert("Compte supprimé avec succès.");
+            socket.disconnect();
+            localStorage.clear();
+            location.reload();
+        } else {
+            const err = await res.json();
+            alert(err.error);
+        }
+    }
+};
 
 saveProfileBtn.onclick = async () => {
     const formData = new FormData(); formData.append('userId', currentUser.id); formData.append('activeTab', activeTab);

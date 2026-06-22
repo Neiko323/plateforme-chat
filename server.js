@@ -24,7 +24,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// Dictionnaire contenant userId -> socket.id
 const sessionsActives = {};
 
 // ==========================================
@@ -71,6 +70,30 @@ app.post('/api/profile/update', upload.single('avatarFile'), async (req, res) =>
     res.json({ success: true, user: { id: user.id, username: fUser, bio: fBio, avatar: fAvatar } });
 });
 
+// ROUTE : SUPPRESSION SÛRE ET SYNCHRONE DU COMPTE
+app.post('/api/profile/delete', async (req, res) => {
+    const { userId } = req.body;
+    const db = getDb();
+    try {
+        // 1. Nettoyage de la base de données
+        await db.run('DELETE FROM messages WHERE user_id = ? OR receiver_id = ?', [userId, userId]);
+        await db.run('DELETE FROM friends WHERE user_one_id = ? OR user_two_id = ?', [userId, userId]);
+        await db.run('DELETE FROM users WHERE id = ?', [userId]);
+        
+        // 2. Suppression de la session active du serveur en mémoire vive
+        if(sessionsActives[userId]) {
+            delete sessionsActives[userId];
+        }
+
+        // 3. Informer instantanément tous les autres clients en ligne
+        io.emit('compte supprime distant', userId);
+
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: "Erreur lors de la suppression." });
+    }
+});
+
 // ==========================================
 //          SOCKET.IO LOGIQUE DU CHAT
 // ==========================================
@@ -78,38 +101,58 @@ app.post('/api/profile/update', upload.single('avatarFile'), async (req, res) =>
 io.on('connection', (socket) => {
     const db = getDb();
 
-    // Envoi sélectif de la liste adaptative des membres au panneau de droite
     async function diffuserMembres(socketCible, targetContext) {
         if (!socketCible.userId) return;
         
         if (!targetContext || targetContext.type === 'global') {
-            // Contexte GÉNÉRAL : Récupérer TOUS les membres enregistrés
             const tousLesMembres = await db.all('SELECT id, username, avatar_url FROM users');
-            const membresFormates = tousLesMembres.map(m => ({
-                id: m.id,
-                username: m.username,
-                avatar_url: m.avatar_url,
-                enLigne: !!sessionsActives[m.id]
-            }));
+            const membresFormates = tousLesMembres.map(m => {
+                const session = sessionsActives[m.id];
+                return {
+                    id: m.id,
+                    username: m.username,
+                    avatar_url: m.avatar_url,
+                    statut: session ? (session.statut || 'online') : 'offline'
+                };
+            });
             socketCible.emit('mise a jour membres', membresFormates);
         } else if (targetContext.type === 'dm') {
-            // Contexte MP : Uniquement les deux utilisateurs concernés
             const deuxMembres = await db.all('SELECT id, username, avatar_url FROM users WHERE id = ? OR id = ?', [socketCible.userId, targetContext.id]);
-            const membresFormates = deuxMembres.map(m => ({
-                id: m.id,
-                username: m.username,
-                avatar_url: m.avatar_url,
-                enLigne: !!sessionsActives[m.id]
-            }));
+            const membresFormates = deuxMembres.map(m => {
+                const session = sessionsActives[m.id];
+                return {
+                    id: m.id,
+                    username: m.username,
+                    avatar_url: m.avatar_url,
+                    statut: session ? (session.statut || 'online') : 'offline'
+                };
+            });
             socketCible.emit('mise a jour membres', membresFormates);
         }
     }
 
     socket.on('authentification-socket', async (userId) => {
         socket.userId = parseInt(userId);
-        sessionsActives[socket.userId] = socket.id;
+        if(!sessionsActives[socket.userId]) {
+            sessionsActives[socket.userId] = { socketId: socket.id, statut: 'online' };
+        } else {
+            sessionsActives[socket.userId].socketId = socket.id;
+        }
 
-        // Rafraîchir le panneau de droite de tout le monde (car un membre passe en ligne)
+        const socketsConnectes = await io.fetchSockets();
+        socketsConnectes.forEach(s => {
+            if(s.currentContext) diffuserMembres(s, s.currentContext);
+        });
+    });
+
+    socket.on('changement statut', async (nouveauStatut) => {
+        if (!socket.userId) return;
+        if (!sessionsActives[socket.userId]) {
+            sessionsActives[socket.userId] = { socketId: socket.id, statut: nouveauStatut };
+        } else {
+            sessionsActives[socket.userId].statut = nouveauStatut;
+        }
+
         const socketsConnectes = await io.fetchSockets();
         socketsConnectes.forEach(s => {
             if(s.currentContext) diffuserMembres(s, s.currentContext);
@@ -117,8 +160,8 @@ io.on('connection', (socket) => {
     });
 
     async function envoyerListeAmis(uId) {
-        const targetSocketId = sessionsActives[uId];
-        if (!targetSocketId) return;
+        const target = sessionsActives[uId];
+        if (!target) return;
         const friends = await db.all(`
             SELECT id, username, avatar_url, bio FROM users WHERE id IN (
                 SELECT user_one_id FROM friends WHERE user_two_id = ? AND status = 'accepted'
@@ -126,13 +169,13 @@ io.on('connection', (socket) => {
                 SELECT user_two_id FROM friends WHERE user_one_id = ? AND status = 'accepted'
             )
         `, [uId, uId]);
-        io.to(targetSocketId).emit('mise a jour amis', friends);
+        io.to(target.socketId).emit('mise a jour amis', friends);
     }
 
     socket.on('demande liste amis', () => { if (socket.userId) envoyerListeAmis(socket.userId); });
 
     socket.on('demande liste membres', (context) => {
-        socket.currentContext = context; // Garde en mémoire où se trouve le client
+        socket.currentContext = context;
         diffuserMembres(socket, context);
     });
 
@@ -183,8 +226,8 @@ io.on('connection', (socket) => {
         if (data.target.type === 'global') {
             socket.broadcast.emit('typing-start', payload);
         } else {
-            const cibleSocketId = sessionsActives[data.target.id];
-            if (cibleSocketId) io.to(cibleSocketId).emit('typing-start', payload);
+            const cible = sessionsActives[data.target.id];
+            if (cible) io.to(cible.socketId).emit('typing-start', payload);
         }
     });
 
@@ -193,8 +236,8 @@ io.on('connection', (socket) => {
         if (data.target && data.target.type === 'global') {
             socket.broadcast.emit('typing-stop');
         } else if (data.target) {
-            const cibleSocketId = sessionsActives[data.target.id];
-            if (cibleSocketId) io.to(cibleSocketId).emit('typing-stop');
+            const cible = sessionsActives[data.target.id];
+            if (cible) io.to(cible.socketId).emit('typing-stop');
         }
     });
 
@@ -208,15 +251,14 @@ io.on('connection', (socket) => {
             io.emit('chat message', payload);
         } else {
             await db.run('INSERT INTO messages (user_id, receiver_id, texte) VALUES (?, ?, ?)', [socket.userId, data.target.id, data.texte]);
-            if (sessionsActives[socket.userId]) io.to(sessionsActives[socket.userId]).emit('chat message', payload);
-            if (sessionsActives[data.target.id]) io.to(sessionsActives[data.target.id]).emit('chat message', payload);
+            if (sessionsActives[socket.userId]) io.to(sessionsActives[socket.userId].socketId).emit('chat message', payload);
+            if (sessionsActives[data.target.id]) io.to(sessionsActives[data.target.id].socketId).emit('chat message', payload);
         }
     });
 
     socket.on('disconnect', async () => { 
         if (socket.userId) {
             delete sessionsActives[socket.userId];
-            // Mettre à jour la liste globale pour avertir du passage hors ligne
             const socketsConnectes = await io.fetchSockets();
             socketsConnectes.forEach(s => {
                 if(s.currentContext) diffuserMembres(s, s.currentContext);
