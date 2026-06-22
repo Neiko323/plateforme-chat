@@ -6,7 +6,6 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// 📦 Notre "base de données" temporaire en mémoire
 const historiqueMessages = [];
 
 app.use(express.static('public'));
@@ -14,19 +13,21 @@ app.use(express.static('public'));
 io.on('connection', (socket) => {
     console.log('Un utilisateur s\'est connecté ! ✅');
 
-    // 🕒 Dès qu'un utilisateur se connecte, on lui envoie TOUS les anciens messages
+    // Envoyer l'historique (qui contient désormais des objets {pseudo, texte})
     socket.emit('chargement historique', historiqueMessages);
 
-    socket.on('chat message', (msg) => {
-        // On ajoute le nouveau message à notre historique
-        historiqueMessages.push(msg);
+    // Écouter les nouveaux messages
+    socket.on('chat message', (data) => {
+        historiqueMessages.push(data);
+        if (historiqueMessages.length > 50) historiqueMessages.shift();
+        
+        io.emit('chat message', data);
+    });
 
-        // Si l'historique devient trop grand, on peut limiter aux 50 derniers messages
-        if (historiqueMessages.length > 50) {
-            historiqueMessages.shift(); // Supprime le plus vieux message
-        }
-
-        io.emit('chat message', msg);
+    // Écouter quand quelqu'un écrit
+    socket.on('typing', (data) => {
+        // Envoie à tout le monde SAUF à celui qui écrit (broadcast)
+        socket.broadcast.emit('typing', data);
     });
 
     socket.on('disconnect', () => {

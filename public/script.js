@@ -1,42 +1,73 @@
-// Connexion au serveur Socket.io
 const socket = io();
 
 const form = document.getElementById('form');
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
+const typingIndicator = document.getElementById('typing-indicator');
 
-// Événement lors de la soumission du formulaire (bouton Envoyer ou touche Entrée)
+// 1. Demander le pseudo au chargement de la page
+let pseudo = prompt("Choisis ton pseudo pour le salon :") || "Anonyme";
+
+// Fonction utilitaire pour ajouter visuellement un message dans la liste
+function afficherMessage(data) {
+    const item = document.createElement('li');
+    
+    const pseudoSpan = document.createElement('span');
+    pseudoSpan.classList.add('pseudo-msg');
+    pseudoSpan.textContent = data.pseudo;
+
+    const texteSpan = document.createElement('span');
+    texteSpan.classList.add('text-msg');
+    texteSpan.textContent = data.texte;
+
+    item.appendChild(pseudoSpan);
+    item.appendChild(texteSpan);
+    messages.appendChild(item);
+    messages.scrollTop = messages.scrollHeight;
+}
+
+// Envoi d'un message
 form.addEventListener('submit', (e) => {
-    e.preventDefault(); // Empêche la page de se recharger
+    e.preventDefault();
     if (input.value) {
-        // On envoie le message au serveur avec le badge 'chat message'
-        socket.emit('chat message', input.value);
-        input.value = ''; // On vide le champ de texte
+        // On envoie un objet complet au serveur
+        socket.emit('chat message', { pseudo: pseudo, texte: input.value });
+        input.value = '';
+        // On prévient le serveur qu'on a fini d'écrire
+        socket.emit('typing', { pseudo: pseudo, isTyping: false });
     }
 });
 
-// Quand le serveur nous envoie un message (provenant de n'importe qui)
-socket.on('chat message', (msg) => {
-    const item = document.createElement('li');
-    item.textContent = msg;
-    messages.appendChild(item);
-    
-    // Auto-scroll vers le bas pour voir le dernier message
-    messages.scrollTop = messages.scrollHeight;
+// Réception d'un message isolé
+socket.on('chat message', (data) => {
+    afficherMessage(data);
 });
 
-// Quand on se connecte, on reçoit l'historique du serveur
+// Réception de l'historique complet
 socket.on('chargement historique', (messagesHistorique) => {
-    // On vide la zone de chat (au cas où)
     messages.innerHTML = '';
+    messagesHistorique.forEach((data) => afficherMessage(data));
+});
+
+// --- Gestion du "En train d'écrire..." ---
+let timeout;
+
+input.addEventListener('input', () => {
+    // On prévient le serveur qu'on écrit
+    socket.emit('typing', { pseudo: pseudo, isTyping: true });
     
-    // On affiche chaque message de l'historique
-    messagesHistorique.forEach((msg) => {
-        const item = document.createElement('li');
-        item.textContent = msg;
-        messages.appendChild(item);
-    });
-    
-    // Scroll tout en bas
-    messages.scrollTop = messages.scrollHeight;
+    // Si l'utilisateur arrête de taper pendant 1.5s, on retire l'indicateur
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+        socket.emit('typing', { pseudo: pseudo, isTyping: false });
+    }, 1500);
+});
+
+// Écouter les autres utilisateurs qui écrivent
+socket.on('typing', (data) => {
+    if (data.isTyping) {
+        typingIndicator.textContent = `${data.pseudo} est en train d'écrire...`;
+    } else {
+        typingIndicator.textContent = '';
+    }
 });
