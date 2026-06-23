@@ -26,7 +26,7 @@ const upload = multer({ storage: storage });
 
 const sessionsActives = {};
 
-// Récupérer la liste des IDs bloqués par ou ciblant un utilisateur
+// Helper pour obtenir la liste des IDs bloqués
 async function obtenirIdsBloques(userId) {
     const db = getDb();
     const rows = await db.all(`
@@ -42,32 +42,54 @@ async function obtenirIdsBloques(userId) {
     return Array.from(ids);
 }
 
+// CORRECTION : Diffuse à droite UNIQUEMENT les amis acceptés de l'utilisateur (Exclut l'utilisateur lui-même)
+// CORRECTION : Envoie la bonne liste selon le contexte (Membres globaux vs Amis)
 async function diffuserMembresGlobale() {
     const db = getDb();
-    // On sélectionne TOUS les utilisateurs enregistrés
-    const users = await db.all('SELECT id, username, avatar_url, bio, status_type FROM users');
+    const tousLesUtilisateurs = await db.all(`SELECT id, username, avatar_url, bio, status_type FROM users`);
     
+    // 1. Construire la liste globale de TOUS les utilisateurs connectés (pour le # général)
+    const listeGlobaleConnectee = tousLesUtilisateurs.map(u => ({
+        id: u.id,
+        username: u.username,
+        avatar_url: u.avatar_url || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
+        bio: u.bio || '',
+        status_type: u.status_type,
+        enLigne: !!sessionsActives[u.id]
+    }));
+
+    // 2. Envoyer la liste personnalisée à chaque session active
     for (const uId in sessionsActives) {
-        const bloques = await obtenirIdsBloques(parseInt(uId));
-        // On filtre uniquement pour enlever les personnes bloquées
-        const listeFiltree = users
-            .filter(u => !bloques.includes(u.id))
-            .map(u => ({
-                id: u.id,
-                username: u.username,
-                avatar_url: u.avatar_url || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
-                bio: u.bio || '',
-                status_type: u.status_type,
-                enLigne: !!sessionsActives[u.id]
-            }));
-        io.to(sessionsActives[uId].socketId).emit('liste membres', listeFiltree);
+        const userIdInt = parseInt(uId);
+        
+        // On récupère uniquement les amis acceptés de cet utilisateur spécifique
+        const mesAmis = await db.all(`
+            SELECT u.id, u.username, u.avatar_url, u.bio, u.status_type 
+            FROM users u
+            JOIN friends f ON (f.user_one_id = u.id OR f.user_two_id = u.id)
+            WHERE f.status = 'accepted' AND u.id != ? AND (f.user_one_id = ? OR f.user_two_id = ?)
+        `, [userIdInt, userIdInt, userIdInt]);
+
+        const listeAmisFiltree = mesAmis.map(u => ({
+            id: u.id,
+            username: u.username,
+            avatar_url: u.avatar_url || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
+            bio: u.bio || '',
+            status_type: u.status_type,
+            enLigne: !!sessionsActives[u.id]
+        }));
+        
+        // On envoie les DEUX listes au client
+        io.to(sessionsActives[uId].socketId).emit('listes membres dispatch', {
+            globale: listeGlobaleConnectee.filter(m => m.id !== userIdInt), // Tout le monde sauf soi
+            amis: listeAmisFiltree
+        });
     }
 }
 
+// Envoie la liste des DMs (Uniquement les amis acceptés)
 async function envoyerDMsListe(socket, userId) {
     const db = getDb();
-    
-    // On récupère uniquement les utilisateurs avec qui on a une relation 'accepted'
     const users = await db.all(`
         SELECT u.id, u.username, u.avatar_url 
         FROM users u
@@ -80,11 +102,21 @@ async function envoyerDMsListe(socket, userId) {
         username: u.username,
         avatar_url: u.avatar_url || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'
     }));
-    
     socket.emit('liste dms', filtered);
 }
 
-// REST API
+// Helper pour renvoyer la vue d'amis centrale
+async function envoyerVueAmisCentrale(socket, userId) {
+    const db = getDb();
+    const rows = await db.all(`
+        SELECT f.*, u.id as u_id, u.username, u.avatar_url FROM friends f
+        JOIN users u ON (f.user_one_id = u.id OR f.user_two_id = u.id)
+        WHERE (f.status = 'accepted' OR f.status = 'pending') AND (f.user_one_id = ? OR f.user_two_id = ?) AND u.id != ?
+    `, [userId, userId, userId]);
+    socket.emit('liste vue amis centrale', rows);
+}
+
+// API REST
 app.post('/api/auth/register', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Champs requis.' });
@@ -163,12 +195,18 @@ io.on('connection', (socket) => {
         sessionsActives[userId] = { socketId: socket.id };
         await envoyerDMsListe(socket, userId);
         await diffuserMembresGlobale();
+        await envoyerVueAmisCentrale(socket, userId);
     });
 
     socket.on('changer statut', async (statutType) => {
         if (!socket.userId) return;
         await db.run('UPDATE users SET status_type = ? WHERE id = ?', [statutType, socket.userId]);
         await diffuserMembresGlobale();
+    });
+
+    socket.on('demande info profil', async (targetId) => {
+        const user = await db.get('SELECT id, username, avatar_url, bio FROM users WHERE id = ?', [targetId]);
+        if (user) socket.emit('info profil', user);
     });
 
     socket.on('demande historique', async (context) => {
@@ -181,16 +219,15 @@ io.on('connection', (socket) => {
                 SELECT m.*, u.username as pseudo, u.avatar_url as avatar FROM messages m 
                 JOIN users u ON m.user_id = u.id WHERE m.receiver_id IS NULL ORDER BY m.timestamp ASC
             `);
-        } else {
+        } else if (context.type === 'dm') {
             queryMessages = await db.all(`
                 SELECT m.*, u.username as pseudo, u.avatar_url as avatar FROM messages m 
                 JOIN users u ON m.user_id = u.id 
                 WHERE (m.user_id = ? AND m.receiver_id = ?) OR (m.user_id = ? AND m.receiver_id = ?) 
                 ORDER BY m.timestamp ASC
             `, [socket.userId, context.id, context.id, socket.userId]);
-        }
+        } else { return; }
 
-        // Masquer les messages des utilisateurs bloqués
         const formatted = queryMessages
             .filter(m => !bloques.includes(m.user_id))
             .map(m => ({
@@ -199,14 +236,6 @@ io.on('connection', (socket) => {
                 texte: m.texte, fileUrl: m.file_url, fileType: m.file_type
             }));
         socket.emit('chargement historique', formatted);
-
-        socket.on('demande info profil', async (targetId) => {
-            const db = getDb();
-            const user = await db.get('SELECT id, username, avatar_url, bio FROM users WHERE id = ?', [targetId]);
-            if (user) {
-                socket.emit('info profil', user);
-            }
-        });
     });
 
     socket.on('chat message', async (data) => {
@@ -234,7 +263,6 @@ io.on('connection', (socket) => {
         };
 
         if (data.target.type === 'global') {
-            // Diffuser à tout le monde. Les clients géreront le filtrage local si nécessaire ou rechargeront
             io.emit('chat message', payload);
         } else {
             if (sessionsActives[socket.userId]) io.to(sessionsActives[socket.userId].socketId).emit('chat message', payload);
@@ -258,7 +286,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Relations, Amis et Blocages
+    // Gestion des relations
     socket.on('recuperer relation ami', async (targetId) => {
         if(!socket.userId) return;
         const row = await db.get(`
@@ -292,12 +320,21 @@ io.on('connection', (socket) => {
         const row = await db.get(`SELECT * FROM friends WHERE (user_one_id = ? AND user_two_id = ?) OR (user_one_id = ? AND user_two_id = ?)`, [socket.userId, targetId, targetId, socket.userId]);
         socket.emit('statut relation ami', { targetId, relation: row || null });
         
-        // Rafraîchir les listes privées et globales pour appliquer le masquage
         await envoyerDMsListe(socket, socket.userId);
+        await envoyerVueAmisCentrale(socket, socket.userId);
         if (sessionsActives[targetId]) {
-            await envoyerDMsListe(io.sockets.sockets.get(sessionsActives[targetId].socketId), targetId);
+            const tgtSocket = io.sockets.sockets.get(sessionsActives[targetId].socketId);
+            if (tgtSocket) {
+                await envoyerDMsListe(tgtSocket, targetId);
+                await envoyerVueAmisCentrale(tgtSocket, targetId);
+            }
         }
         await diffuserMembresGlobale();
+    });
+
+    socket.on('demande vue amis centrale', async () => {
+        if (!socket.userId) return;
+        await envoyerVueAmisCentrale(socket, socket.userId);
     });
 
     socket.on('demande liste bloques', async () => {
@@ -309,8 +346,7 @@ io.on('connection', (socket) => {
         `, [socket.userId, socket.userId]);
         
         socket.emit('liste bloques', rows.map(r => ({
-            id: r.u_id,
-            username: r.username,
+            id: r.u_id, username: r.username,
             avatar_url: r.avatar_url || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'
         })));
     });

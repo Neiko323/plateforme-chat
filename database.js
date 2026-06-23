@@ -21,7 +21,7 @@ async function initDatabase() {
         )
     `);
 
-    // Table Messages
+    // Table Messages (receiver_id NULL = salon général)
     await db.exec(`
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +30,6 @@ async function initDatabase() {
             texte TEXT,
             file_url TEXT,
             file_type TEXT,
-            reactions TEXT DEFAULT '{}',
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);

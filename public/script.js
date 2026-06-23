@@ -51,15 +51,29 @@ const modalTabBtns = document.querySelectorAll('.modal-tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 const blockedUsersList = document.getElementById('blocked-users-list');
 
+// Onglets Vue Amis Centrale
+const friendsTabBtn = document.getElementById('friends-tab-btn');
+const chatViewContainer = document.getElementById('chat-view-container');
+const friendsViewContainer = document.getElementById('friends-view-container');
+const friendsCentralList = document.getElementById('friends-central-list');
+const subtabAll = document.getElementById('subtab-all');
+const subtabPending = document.getElementById('subtab-pending');
+const pendingBadge = document.getElementById('pending-badge');
+
 // App Global State
 let isLoginMode = true;
 let currentUser = null;
 let currentChatTarget = { type: 'global', id: null };
+let currentFriendsSubTab = 'all'; // 'all' ou 'pending'
 let notificationsDMs = {};
 let globalUnreadCount = 0;
 let activeTab = 'tab-profile';
 let selectedPopoutUserId = null;
-let listeMembresCachee = [];
+
+// Stockage local des membres reçu par dispatch
+let cacheRelationsAmis = []; // Stocke le dernier tableau brut reçu du serveur
+let listeMembresGlobale = [];
+let listeMembresAmis = [];
 
 authSwitchText.onclick = () => {
     isLoginMode = !isLoginMode;
@@ -133,6 +147,9 @@ document.onclick = () => {
 };
 
 function changerSalonGlobal() {
+    chatViewContainer.style.display = 'flex';
+    friendsViewContainer.style.display = 'none';
+
     currentChatTarget = { type: 'global', id: null };
     chatHeader.innerHTML = `# général <span>| Bienvenue sur le salon général !</span>`;
     document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active'));
@@ -140,9 +157,13 @@ function changerSalonGlobal() {
     globalUnreadCount = 0;
     globalBadgeContainer.innerHTML = "";
     socket.emit('demande historique', currentChatTarget);
+    rafraichirBarreDroite();
 }
 
 function changerSalonDM(user) {
+    chatViewContainer.style.display = 'flex';
+    friendsViewContainer.style.display = 'none';
+
     currentChatTarget = { type: 'dm', id: user.id };
     chatHeader.innerHTML = `👤 ${user.username} <span>| Message privé avec ${user.username}</span>`;
     document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active'));
@@ -153,7 +174,40 @@ function changerSalonDM(user) {
     if (badge) badge.remove();
     
     socket.emit('demande historique', currentChatTarget);
+    rafraichirBarreDroite();
 }
+
+friendsTabBtn.onclick = () => {
+    document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active'));
+    friendsTabBtn.classList.add('active');
+    
+    chatViewContainer.style.display = 'none';
+    friendsViewContainer.style.display = 'flex';
+    currentChatTarget = { type: 'friends', id: null };
+    
+    // Forcer le sous-onglet par défaut sur "Tous" au clic principal
+    subtabAll.classList.add('active');
+    subtabPending.classList.remove('active');
+    currentFriendsSubTab = 'all';
+
+    socket.emit('demande vue amis centrale');
+    rafraichirBarreDroite();
+};
+
+// CORRECTION : Déclencheurs de sous-onglets avec nettoyage et reconstruction immédiate
+subtabAll.onclick = () => {
+    subtabAll.classList.add('active');
+    subtabPending.classList.remove('active');
+    currentFriendsSubTab = 'all';
+    genererInterfaceCentraleAmis();
+};
+
+subtabPending.onclick = () => {
+    subtabPending.classList.add('active');
+    subtabAll.classList.remove('active');
+    currentFriendsSubTab = 'pending';
+    genererInterfaceCentraleAmis();
+};
 
 chatAttachBtn.onclick = () => chatFileInput.click();
 chatFileInput.onchange = async () => {
@@ -177,23 +231,17 @@ form.onsubmit = (e) => {
     input.value = '';
 };
 
-// Clic pour ouvrir la mini-carte de profil
 window.ouvrirProfilPopout = (e, userId) => {
     e.stopPropagation();
-    
-    // Positionner immédiatement la carte là où on a cliqué
     userProfilePopout.style.top = `${Math.min(e.clientY, window.innerHeight - 260)}px`;
     userProfilePopout.style.left = `${Math.min(e.clientX, window.innerWidth - 300)}px`;
     userProfilePopout.style.display = 'block';
 
-    // Demander les détails de cet utilisateur spécifique au serveur
     socket.emit('demande info profil', userId);
 };
 
-// Réception des infos du profil depuis le serveur
 socket.on('info profil', (member) => {
     if (!member) return;
-
     selectedPopoutUserId = member.id;
     popoutImg.src = member.avatar_url || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
     popoutName.textContent = member.username;
@@ -205,7 +253,6 @@ socket.on('info profil', (member) => {
     } else {
         popoutFriendActionBtn.style.display = 'block';
         popoutBlockBtn.style.display = 'block';
-        // Demander l'état de la relation (Ami, En attente, Bloqué...)
         socket.emit('recuperer relation ami', member.id);
     }
 });
@@ -255,7 +302,7 @@ socket.on('statut relation ami', ({ targetId, relation }) => {
 
         if (relation.status === 'pending') {
             if (relation.action_user_id === currentUser.id) {
-                popoutFriendActionBtn.textContent = "Demande envoyée (Annuler)";
+                popoutFriendActionBtn.textContent = "Annuler la demande";
                 popoutFriendActionBtn.className = "popout-btn btn-remove";
                 popoutFriendActionBtn.setAttribute('data-state', 'sent');
             } else {
@@ -264,7 +311,7 @@ socket.on('statut relation ami', ({ targetId, relation }) => {
                 popoutFriendActionBtn.setAttribute('data-state', 'received');
             }
         } else if (relation.status === 'accepted') {
-            popoutFriendActionBtn.textContent = "Retirer de vos amis";
+            popoutFriendActionBtn.textContent = "Retirer des amis";
             popoutFriendActionBtn.className = "popout-btn btn-remove";
             popoutFriendActionBtn.setAttribute('data-state', 'accepted');
         }
@@ -321,7 +368,6 @@ socket.on('chat message', (data) => {
         (currentChatTarget.type === 'dm' && !data.isGlobal && (data.senderId === currentChatTarget.id || (data.senderId === currentUser.id && data.receiverId === currentChatTarget.id)));
 
     if (correspondAuSalonActuel) {
-        // En cas d'interaction globale, si l'historique a filtré l'utilisateur, on rafraîchit à la volée.
         socket.emit('demande historique', currentChatTarget);
     } else {
         if (data.isGlobal) {
@@ -361,16 +407,38 @@ socket.on('liste dms', (users) => {
         btn.onclick = () => changerSalonDM(u);
         dmsList.appendChild(btn);
     });
-    // Si la cible actuelle a été bloquée, on revient sur le général
     if (currentChatTarget.type === 'dm' && !users.some(u => u.id === currentChatTarget.id)) {
         changerSalonGlobal();
     }
 });
 
-socket.on('liste membres', (membres) => {
-    listeMembresCachee = membres;
+socket.on('listes membres dispatch', (data) => {
+    listeMembresGlobale = data.globale;
+    listeMembresAmis = data.amis;
+    rafraichirBarreDroite();
+});
+
+function rafraichirBarreDroite() {
     rightSidebar.innerHTML = '';
-    membres.forEach(m => {
+    
+    const estDansOngletAmis = (currentChatTarget.type === 'friends');
+    const listeAAfficher = estDansOngletAmis ? listeMembresAmis : listeMembresGlobale;
+
+    if (!estDansOngletAmis && currentUser) {
+        const monProfilRow = document.createElement('div');
+        monProfilRow.className = `member-row online-user`;
+        monProfilRow.onclick = (e) => ouvrirProfilPopout(e, currentUser.id);
+        monProfilRow.innerHTML = `
+            <div class="member-avatar-box">
+                <img src="${currentUser.avatar_url || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'}" alt="">
+                <div class="status-dot ${currentUser.status_type || 'online'}"></div>
+            </div> 
+            <span class="member-name">${currentUser.username} <span style="font-size:0.75rem; color:#949ba4;">(Moi)</span></span>
+        `;
+        rightSidebar.appendChild(monProfilRow);
+    }
+
+    listeAAfficher.forEach(m => {
         const row = document.createElement('div');
         row.className = `member-row ${m.enLigne ? 'online-user' : ''}`;
         row.onclick = (e) => ouvrirProfilPopout(e, m.id);
@@ -383,7 +451,87 @@ socket.on('liste membres', (membres) => {
         `;
         rightSidebar.appendChild(row);
     });
+}
+
+// Intercepteur Socket : Reçoit les données brutes et déclenche la construction
+socket.on('liste vue amis centrale', (relations) => {
+    cacheRelationsAmis = relations; // Mise en mémoire tampon pour les switchs d'onglets instantanés
+    genererInterfaceCentraleAmis();
 });
+
+// CORRECTION : Fonction isolée chargée de filtrer de façon stricte et d'injecter dans le DOM
+function genererInterfaceCentraleAmis() {
+    friendsCentralList.innerHTML = '';
+    
+    // 1. Calculer le badge rouge global des invitations reçues (non validées)
+    const requetesEnAttenteRecues = cacheRelationsAmis.filter(r => r.status === 'pending' && r.action_user_id !== currentUser.id);
+    if (requetesEnAttenteRecues.length > 0) {
+        pendingBadge.textContent = requetesEnAttenteRecues.length;
+        pendingBadge.style.display = 'inline-flex';
+    } else { 
+        pendingBadge.style.display = 'none'; 
+    }
+
+    // 2. Filtrer le tableau selon le sous-onglet actif ('all' pour les validés, 'pending' pour les requêtes en cours)
+    let listeAffichage = [];
+    if (currentFriendsSubTab === 'all') {
+        listeAffichage = cacheRelationsAmis.filter(r => r.status === 'accepted');
+    } else if (currentFriendsSubTab === 'pending') {
+        listeAffichage = cacheRelationsAmis.filter(r => r.status === 'pending');
+    }
+
+    // 3. Rendu si aucun résultat
+    if (listeAffichage.length === 0) {
+        friendsCentralList.innerHTML = `<p style="color:#6d737d; font-size:0.9rem; text-align:center; margin-top:30px;">Il n'y a personne ici.</p>`;
+        return;
+    }
+
+    // 4. Boucler et générer les lignes HTML adaptées
+    listeAffichage.forEach(r => {
+        const row = document.createElement('div');
+        row.className = "blocked-user-row";
+        
+        let actionsHTML = '';
+        if (r.status === 'accepted') {
+            actionsHTML = `<button class="unblock-btn" style="border-color:#5865f2; color:#5865f2;" onclick="changerSalonDM({id:${r.u_id}, username:'${r.username}', avatar_url:'${r.avatar_url}'})">💬 Message</button>`;
+        } else {
+            // Statut strict 'pending' (En attente)
+            if (r.action_user_id === currentUser.id) {
+                // Envoyée par nous
+                actionsHTML = `
+                    <span style="color:#949ba4; font-size:0.85rem; margin-right:10px;">Demande envoyée...</span>
+                    <button class="unblock-btn" onclick="actionAmiCentrale('refuser', ${r.u_id})">Annuler</button>
+                `;
+            } else {
+                // Reçue d'un tiers
+                actionsHTML = `
+                    <button class="save-btn" style="padding:4px 10px; font-size:0.8rem; margin-right:5px; background-color:#248046;" onclick="actionAmiCentrale('accepter', ${r.u_id})">Accepter</button>
+                    <button class="unblock-btn" onclick="actionAmiCentrale('refuser', ${r.u_id})">Refuser</button>
+                `;
+            }
+        }
+
+        row.innerHTML = `
+            <div class="blocked-user-info">
+                <img src="${r.avatar_url || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'}">
+                <div>
+                    <div style="font-weight:bold; color:white;">${r.username}</div>
+                    <div style="font-size:0.75rem; color:#949ba4;">
+                        ${r.status === 'accepted' ? 'Ami' : (r.action_user_id === currentUser.id ? 'Demande d\'ami envoyée' : 'Demande d\'ami reçue')}
+                    </div>
+                </div>
+            </div>
+            <div>${actionsHTML}</div>
+        `;
+        friendsCentralList.appendChild(row);
+    });
+}
+
+window.actionAmiCentrale = (action, targetId) => {
+    socket.emit('action ami', { action, targetId });
+    // On redemande immédiatement une mise à jour après l'action
+    setTimeout(() => { socket.emit('demande vue amis centrale'); }, 50);
+};
 
 socket.on('liste bloques', (users) => {
     blockedUsersList.innerHTML = '';
@@ -420,7 +568,6 @@ openSettingsBtn.onclick = (e) => {
     document.getElementById('edit-new-password').value = "";
     document.getElementById('edit-current-password').value = "";
     
-    // Forcer le premier onglet
     modalTabBtns[0].click();
     settingsModal.style.display = 'flex';
 };
@@ -449,7 +596,7 @@ editAvatarFile.onchange = () => {
 logoutBtn.onclick = () => { localStorage.clear(); location.reload(); };
 
 deleteAccountBtn.onclick = async () => {
-    const pass = prompt("Entrez votre mot de passe pour confirmer la suppression définitive :");
+    const pass = prompt("Confirmez votre mot de passe pour supprimer définitivement le compte :");
     if (pass) {
         const res = await fetch('/api/profile/delete', {
             method: 'POST',
