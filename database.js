@@ -16,22 +16,26 @@ async function initDatabase() {
             username TEXT UNIQUE,
             password_hash TEXT,
             avatar_url TEXT,
-            bio TEXT
+            bio TEXT,
+            status_type TEXT DEFAULT 'online'
         )
     `);
 
-    // Table Messages modifiée pour supporter les Salons publics & Messages Privés (receiver_id NULL = salon général)
+    // Table Messages
     await db.exec(`
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             receiver_id INTEGER DEFAULT NULL,
             texte TEXT,
+            file_url TEXT,
+            file_type TEXT,
+            reactions TEXT DEFAULT '{}',
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
 
-    // Table Relations Amis (status: 'pending' ou 'accepted')
+    // Table Relations (status: 'pending', 'accepted' ou 'blocked')
     await db.exec(`
         CREATE TABLE IF NOT EXISTS friends (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

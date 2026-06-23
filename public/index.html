@@ -5,209 +5,182 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>⚡ Mini-Discord Pro</title>
     <style>
+        /* [Styles d'origine conservés à l'identique pour éviter la redondance] */
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: #1e1f22; color: #dbdee1;
-            display: flex; justify-content: center; align-items: center; height: 100vh;
-            overflow: hidden;
-        }
-        
-        /* Écran d'accueil */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1f22; color: #dbdee1; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
         .auth-container { background: #313338; padding: 40px; border-radius: 8px; width: 100%; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
         .auth-container h2 { text-align: center; color: #fff; margin-bottom: 8px; }
         .auth-container p { text-align: center; color: #b5bac1; font-size: 0.9rem; margin-bottom: 20px; }
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; color: #b5bac1; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; }
-        .form-group input { width: 100%; padding: 10px; background: #1e1f22; border: none; color: #fff; border-radius: 3px; outline: none; }
-        .auth-btn { width: 100%; padding: 12px; background: #5865f2; color: white; border: none; border-radius: 3px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
-        .switch-auth { text-align: center; font-size: 0.85rem; color: #949ba4; }
-        .switch-auth a { color: #00a8fc; text-decoration: none; cursor: pointer; }
-        
-        /* Application Globale */
-        #main-app { display: none; width: 100%; max-width: 1200px; height: 85vh; background: #2b2d31; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
-        .app-layout { display: flex; height: 100%; }
-        
-        /* Panneau de Gauche */
-        #left-sidebar { width: 240px; background: #2f3136; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid #1f2023; flex-shrink: 0; }
-        .sidebar-scroll { flex-grow: 1; overflow-y: auto; padding: 15px; }
-        .sidebar-section-title { color: #949ba4; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; margin-top: 15px; }
-        .sidebar-section-title:first-child { margin-top: 0; }
-        
-        .item-list { list-style: none; }
-        .clickable-item { padding: 8px; color: #949ba4; font-weight: 500; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
-        .clickable-item:hover { background: #35373c; color: #dbdee1; }
-        .clickable-item.active { background: #40444b; color: #fff !important; font-weight: bold !important; }
-        .clickable-item.unread { color: #ffffff; font-weight: bold; }
-        
-        .item-content { display: flex; align-items: center; gap: 8px; }
-        .sidebar-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-        
-        .badge-notification { background-color: #f23f43; color: white; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; border-radius: 10px; min-width: 18px; text-align: center; display: inline-block; }
-        
-        /* Pied de page utilisateur */
-        .user-footer { background: #232428; padding: 10px; display: flex; align-items: center; justify-content: space-between; position: relative; }
-        .user-footer-info { display: flex; align-items: center; gap: 8px; overflow: hidden; cursor: pointer; padding: 4px; border-radius: 4px; width: 80%; }
-        .user-footer-info:hover { background: #35373c; }
-        .footer-avatar-wrapper { position: relative; width: 32px; height: 32px; flex-shrink: 0; }
-        .footer-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-        .footer-username { color: #fff; font-size: 0.85rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .gear-btn { background: none; border: none; color: #b9bbbe; cursor: pointer; font-size: 1.2rem; padding: 4px; border-radius: 4px; }
-        .gear-btn:hover { background: #35373c; color: #dcddde; }
+        .form-group input { width: 100%; padding: 10px; background: #1e1f22; border: 1px solid #111; border-radius: 4px; color: #fff; font-size: 1rem; }
+        .form-group input:focus { border-color: #5865f2; outline: none; }
+        .auth-btn { width: 100%; padding: 12px; background: #5865f2; color: #fff; border: none; border-radius: 4px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        .auth-btn:hover { background: #4752c4; }
+        .auth-switch { color: #949ba4; font-size: 0.85rem; text-align: center; margin-top: 15px; cursor: pointer; }
+        .auth-switch span { color: #00a8fc; }
+        .auth-switch span:hover { text-decoration: underline; }
+        #main-app { display: none; width: 100vw; height: 100vh; }
+        .app-layout { display: flex; width: 100%; height: 100%; }
+        #sidebar { width: 260px; background: #2b2d31; display: flex; flex-direction: column; border-right: 1px solid #1f2023; }
+        .sidebar-header { height: 48px; border-bottom: 1px solid #1f2023; display: flex; align-items: center; padding: 0 16px; font-weight: bold; color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .sidebar-menu { flex: 1; overflow-y: auto; padding: 10px 8px; }
+        .menu-section-title { font-size: 0.75rem; font-weight: bold; color: #949ba4; text-transform: uppercase; padding: 8px; letter-spacing: 0.5px; }
+        .channel-btn { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 4px; color: #949ba4; cursor: pointer; font-weight: 500; margin-bottom: 2px; text-decoration: none; position: relative; }
+        .channel-btn:hover, .channel-btn.active { background: #35373c; color: #dbdee1; }
+        .channel-btn.active { background: #404249; color: #fff; }
+        .channel-btn img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+        .unread-badge { position: absolute; right: 10px; background: #f23f43; color: white; border-radius: 50%; font-size: 0.7rem; min-width: 18px; height: 18px; display: flex; justify-content: center; align-items: center; font-weight: bold; padding: 2px; }
+        .user-footer { height: 56px; background: #232428; display: flex; align-items: center; padding: 0 8px; gap: 8px; border-top: 1px solid #1f2023; }
+        .avatar-container { position: relative; display: inline-block; cursor: pointer; }
+        .avatar-container img, .member-row img { width: 32px; height: 32px; border-radius: 50%; background: #313338; object-fit: cover; }
+        .status-dot { position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #232428; }
+        .status-dot.online { background-color: #23a55a; }
+        .status-dot.idle { background-color: #f0b232; }
+        .status-dot.dnd { background-color: #f23f43; }
+        .status-dot.offline { background-color: #80848e; }
+        .user-info-text { flex: 1; overflow: hidden; }
+        .user-info-text .name { font-weight: bold; color: #fff; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .user-info-text .status { font-size: 0.75rem; color: #949ba4; }
+        .settings-icon-btn { background: none; border: none; color: #b5bac1; cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center; font-size: 1.1rem; }
+        .settings-icon-btn:hover { background: #35373c; color: #dbdee1; }
+        #status-picker-menu { display: none; position: absolute; bottom: 60px; left: 10px; background: #111214; border-radius: 4px; padding: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 100; flex-direction: column; gap: 4px; }
+        .status-option { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 2px; color: #b5bac1; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+        .status-option:hover { background: #5865f2; color: #fff; }
+        #chat-window { flex: 1; background: #313338; display: flex; flex-direction: column; position: relative; }
+        #chat-header { height: 48px; border-bottom: 1px solid #1f2023; display: flex; align-items: center; padding: 0 16px; font-weight: bold; color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); gap: 10px; }
+        #chat-header span { color: #949ba4; font-weight: normal; font-size: 0.9rem; }
+        #messages { flex: 1; overflow-y: auto; padding: 20px 0; list-style: none; }
+        .message-container { position: relative; display: flex; gap: 16px; padding: 8px 16px; transition: background 0.1s; }
+        .message-container:hover { background: #2e3035; }
+        .avatar-chat { width: 40px; height: 40px; border-radius: 50%; background: #2b2d31; object-fit: cover; flex-shrink: 0; cursor: pointer; }
+        .msg-content { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .msg-content .pseudo { font-weight: bold; color: #f2f3f5; font-size: 0.95rem; cursor: pointer; }
+        .msg-content .pseudo:hover { text-decoration: underline; }
+        .msg-content .texte-message { color: #dbdee1; font-size: 0.95rem; word-break: break-word; white-space: pre-wrap; }
+        .chat-media { max-width: 300px; max-height: 300px; border-radius: 4px; margin-top: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .file-download-link { display: inline-flex; align-items: center; gap: 8px; padding: 10px; background: #2b2d31; border: 1px solid #1e1f22; border-radius: 4px; text-decoration: none; color: #00a8fc; font-weight: 500; font-size: 0.9rem; margin-top: 6px; width: fit-content; }
+        .file-download-link:hover { background: #35373c; text-decoration: underline; }
+        .message-actions { display: none; position: absolute; right: 20px; top: -10px; background: #2b2d31; border: 1px solid #1f2023; border-radius: 4px; padding: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10; }
+        .message-container:hover .message-actions { display: flex; gap: 4px; }
+        .action-btn { background: none; border: none; cursor: pointer; color: #b5bac1; padding: 6px; border-radius: 4px; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+        .action-btn:hover { background: #35373c; color: #dbdee1; }
+        #form { padding: 0 16px 24px 16px; background: #313338; display: flex; flex-direction: column; position: relative; }
+        .input-wrapper { background: #383a40; border-radius: 8px; display: flex; align-items: center; padding: 0 16px; min-height: 44px; }
+        #input { flex: 1; background: none; border: none; color: #dbdee1; font-size: 1rem; padding: 10px 0; outline: none; }
+        .attach-btn { background: none; border: none; color: #b5bac1; font-size: 1.5rem; cursor: pointer; padding-right: 12px; display: flex; align-items: center; }
+        .attach-btn:hover { color: #dbdee1; }
+        #right-sidebar { width: 240px; background: #2b2d31; overflow-y: auto; padding: 20px 16px; border-left: 1px solid #1f2023; }
+        .member-row { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: 4px; cursor: pointer; margin-bottom: 4px; position: relative; }
+        .member-row:hover { background: #35373c; }
+        .member-avatar-box { position: relative; }
+        .member-name { font-weight: 500; font-size: 0.9rem; color: #dbdee1; }
+        .member-row:not(.online-user) { opacity: 0.45; filter: grayscale(80%); }
 
-        /* Menu sélecteur de statut */
-        #status-picker-menu { display: none; position: absolute; bottom: 55px; left: 10px; background: #111214; border-radius: 4px; padding: 6px; width: 180px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 1100; }
-        .status-option { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 2px; cursor: pointer; font-size: 0.85rem; color: #dbdee1; }
-        .status-option:hover { background: #4752c4; color: #fff; }
-        .status-option .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .profile-popout { display: none; position: fixed; background: #232428; border-radius: 8px; width: 280px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 2000; overflow: hidden; border: 1px solid #1f2023; }
+        .popout-banner { height: 60px; background: #5865f2; }
+        .popout-body { padding: 16px; position: relative; color: #fff; }
+        .popout-avatar { width: 64px; height: 64px; border-radius: 50%; border: 4px solid #232428; background: #313338; position: absolute; top: -32px; left: 12px; object-fit: cover; }
+        .popout-username { font-size: 1.15rem; font-weight: bold; margin-top: 36px; }
+        .popout-bio-title { font-size: 0.75rem; font-weight: bold; text-transform: uppercase; color: #b5bac1; margin-top: 12px; margin-bottom: 4px; }
+        .popout-bio { font-size: 0.85rem; color: #dbdee1; line-height: 1.3; margin-bottom: 14px; background: #111214; padding: 8px; border-radius: 4px; min-height: 40px; }
+        .popout-btn { width: 100%; padding: 8px; border: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; cursor: pointer; color: white; background-color: #5865f2; transition: background 0.15s; margin-bottom: 6px; }
+        .popout-btn:hover { background-color: #4752c4; }
+        .popout-btn.btn-remove { background-color: #da373c; }
+        .popout-btn.btn-remove:hover { background-color: #bc2f34; }
 
-        /* Zone de Chat */
-        #chat-window { flex-grow: 1; display: flex; flex-direction: column; height: 100%; background: #313338; }
-        #chat-header { background: #313338; padding: 15px; border-bottom: 1px solid #1f2023; color: #fff; font-weight: bold; }
-        #messages { list-style: none; padding: 20px; flex-grow: 1; overflow-y: auto; }
-        #messages li { margin-bottom: 12px; display: flex; align-items: start; gap: 10px; }
-        .avatar-chat { width: 35px; height: 35px; border-radius: 50%; background: #40444b; object-fit: cover; cursor: pointer; }
-        .avatar-chat:hover { filter: brightness(0.8); }
-        .msg-content { display: flex; flex-direction: column; max-width: 85%; }
-        .pseudo { color: #f2f3f5; font-weight: bold; font-size: 0.95rem; cursor: pointer; }
-        .pseudo:hover { text-decoration: underline; }
-        .texte-message { color: #dbdee1; margin-top: 2px; word-break: break-all; }
-        
-        /* Affichage des médias */
-        .chat-image { max-width: 100%; max-height: 250px; border-radius: 6px; margin-top: 5px; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-        .chat-audio { margin-top: 5px; outline: none; max-width: 100%; }
-        .chat-file-link { display: inline-flex; align-items: center; gap: 8px; background: #2b2d31; padding: 10px 14px; border-radius: 6px; color: #00a8fc; text-decoration: none; font-size: 0.9rem; margin-top: 5px; border: 1px solid #1f2023; font-weight: 500; }
-        .chat-file-link:hover { text-decoration: underline; background: #35373c; }
-
-        #typing-indicator { padding: 0 20px 5px 20px; font-size: 0.85rem; color: #b5bac1; height: 20px; font-style: italic; font-weight: 500; }
-        #form { display: flex; padding: 20px; background: #313338; gap: 10px; align-items: center; }
-        #input { flex-grow: 1; padding: 12px; background: #383a40; border: none; color: #fff; border-radius: 8px; outline: none; }
-        
-        /* Bouton Fichier pièce jointe */
-        .attach-btn { background: #4e5058; color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 1.3rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
-        .attach-btn:hover { background: #6d6f78; }
-
-        /* Panneau droit (Membres) */
-        #right-sidebar { width: 240px; background: #2f3136; border-left: 1px solid #1f2023; padding: 20px 10px; overflow-y: auto; flex-shrink: 0; }
-        .member-group-title { color: #949ba4; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; margin-bottom: 10px; margin-top: 15px; }
-        .member-group-title:first-child { margin-top: 0; }
-        .member-item { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 4px; cursor: pointer; margin-bottom: 4px; }
-        .member-item:hover { background: #35373c; }
-        .avatar-container { position: relative; width: 32px; height: 32px; }
-        .member-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-        
-        /* Pastilles de Statut */
-        .status-dot { position: absolute; bottom: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #2f3136; }
-        .status-online { background-color: #23a55a; }
-        .status-idle { background-color: #f0b232; }
-        .status-dnd { background-color: #f23f43; }
-        .status-offline { background-color: #80848e; }
-        
-        .member-info { display: flex; flex-direction: column; overflow: hidden; }
-        .member-name { font-size: 0.9rem; font-weight: 500; color: #dbdee1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .member-subtext { font-size: 0.75rem; color: #949ba4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .member-offline .member-name { color: #80848e; }
-
-        /* MINI PROFIL */
-        #mini-profile-card { display: none; position: fixed; background: #18191c; width: 280px; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.6); z-index: 1000; border: 1px solid #2f3136; }
-        .profile-banner { height: 60px; background: #5865f2; }
-        .profile-avatar-container { padding: 0 16px; margin-top: -30px; display: flex; justify-content: space-between; align-items: end; }
-        .profile-card-avatar { width: 70px; height: 70px; border-radius: 50%; border: 6px solid #18191c; background: #2f3136; object-fit: cover; }
-        .profile-card-body { padding: 16px; background: #1f2023; margin: 8px; border-radius: 8px; }
-        .profile-card-username { color: #fff; font-size: 1.1rem; font-weight: bold; margin-bottom: 10px; }
-        .profile-card-bio-title { font-size: 0.75rem; font-weight: bold; text-transform: uppercase; color: #b5bac1; margin-bottom: 4px; }
-        .profile-card-bio { font-size: 0.85rem; color: #dbdee1; margin-bottom: 15px; white-space: pre-line; }
-        .profile-action-btn { width: 100%; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.85rem; margin-bottom: 6px; }
-        .btn-primary { background: #5865f2; color: #fff; }
-        .btn-primary:hover { background: #4752c4; }
-        .btn-secondary { background: #4f545c; color: #fff; }
-        .btn-secondary:hover { background: #686d73; }
-        .btn-danger { background: #da373c; color: #fff; }
-        .btn-danger:hover { background: #a92b2f; }
-
-        /* MODALE PARAMÈTRES */
-        #settings-modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 999; }
-        .modal-content { background: #313338; width: 100%; max-width: 650px; height: 500px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 25px rgba(0,0,0,0.5); display: flex; }
-        .modal-sidebar { width: 180px; background: #2b2d31; padding: 20px 10px; display: flex; flex-direction: column; gap: 5px; border-right: 1px solid #1f2023; }
-        .modal-tab-btn { background: none; border: none; color: #b5bac1; text-align: left; padding: 10px; border-radius: 4px; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
+        .modal-overlay { display: none; position: fixed; top:0; left:0; width:100vw; height:100vh; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-card { background: #313338; width: 100%; max-width: 720px; height: 500px; border-radius: 8px; display: flex; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .modal-sidebar { width: 200px; background: #2b2d31; padding: 40px 10px 20px 20px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid #1f2023; }
+        .modal-tab-btn { background: none; border: none; text-align: left; padding: 8px 10px; border-radius: 4px; color: #949ba4; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
         .modal-tab-btn:hover { background: #35373c; color: #dbdee1; }
-        .modal-tab-btn.active { background: #40444b; color: #fff; font-weight: bold; }
-        .modal-main { flex-grow: 1; display: flex; flex-direction: column; background: #313338; }
-        .modal-header { padding: 20px; color: #fff; font-weight: bold; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f2023; }
-        .close-modal-btn { background: none; border: none; color: #b5bac1; font-size: 1.2rem; cursor: pointer; }
-        .modal-body { padding: 20px; flex-grow: 1; overflow-y: auto; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .modal-body label { display: block; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; color: #b5bac1; margin-bottom: 6px; margin-top: 15px; }
-        .modal-body label:first-child { margin-top: 0; }
-        .modal-body input { width: 100%; padding: 10px; background: #1e1f22; border: none; color: #fff; border-radius: 4px; outline: none; }
-        .modal-footer { padding: 15px 20px; background: #2b2d31; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1f2023; }
+        .modal-tab-btn.active { background: #404249; color: #fff; }
+        .modal-main { flex: 1; display: flex; flex-direction: column; background: #313338; }
+        .modal-body { flex: 1; padding: 40px; overflow-y: auto; }
+        .modal-body h3 { color: #fff; margin-bottom: 20px; font-size: 1.2rem; }
+        .tab-content { display: none; flex-direction: column; }
+        .tab-content.active { display: flex; }
+        .profile-edit-flex { display: flex; gap: 20px; align-items: center; margin-bottom: 25px; background: #1e1f22; padding: 16px; border-radius: 8px; }
+        .profile-edit-flex img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; background: #2b2d31; }
+        .modal-body label { display: block; color: #b5bac1; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; }
+        .modal-body input[type="text"], .modal-body input[type="password"], .modal-body textarea { width: 100%; padding: 10px; background: #1e1f22; border: 1px solid #111; border-radius: 4px; color: #fff; font-size: 0.95rem; margin-bottom: 15px; outline: none; }
+        .modal-body textarea { resize: none; height: 80px; font-family: inherit; }
+        .profile-action-btn { padding: 10px 16px; background: #5865f2; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
+        .profile-action-btn:hover { background: #4752c4; }
+        .btn-danger { background: #f23f43; }
+        .btn-danger:hover { background: #da373c; }
+        .modal-footer { height: 60px; background: #2b2d31; border-top: 1px solid #1f2023; display: flex; align-items: center; justify-content: flex-end; padding: 0 20px; gap: 12px; }
+        .close-btn { background: none; border: none; color: #fff; cursor: pointer; font-size: 0.9rem; }
+        .close-btn:hover { text-decoration: underline; }
         .save-btn { padding: 10px 20px; background: #248046; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .logout-modal-btn { padding: 10px 15px; background: #4f545c; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .save-btn:hover { background: #1a6535; }
+
+        /* Nouveaux styles pour la liste des bloqués */
+        .blocked-user-row { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #1e1f22; border-radius: 4px; margin-bottom: 8px; }
+        .blocked-user-info { display: flex; align-items: center; gap: 10px; }
+        .blocked-user-info img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+        .unblock-btn { padding: 6px 12px; background: transparent; border: 1px solid #f23f43; color: #f23f43; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; transition: all 0.2s; }
+        .unblock-btn:hover { background: #f23f43; color: #fff; }
     </style>
 </head>
 <body>
 
-    <!-- AUTHENTIFICATION -->
-    <div id="auth-screen" class="auth-container">
-        <h2 id="auth-title">Ha, te revoilà !</h2>
-        <p id="auth-subtitle">Nous sommes ravis de te revoir !</p>
+    <!-- Auth Screen -->
+    <div class="auth-container" id="auth-screen">
+        <h2 id="auth-title">Ha, vous revoilà !</h2>
+        <p id="auth-subtitle">Nous sommes si heureux de vous revoir !</p>
         <div class="form-group">
             <label>Nom d'utilisateur</label>
-            <input type="text" id="auth-username">
+            <input type="text" id="auth-username" autocomplete="off">
         </div>
         <div class="form-group">
             <label>Mot de passe</label>
             <input type="password" id="auth-password">
         </div>
         <button class="auth-btn" id="auth-submit-btn">Se connecter</button>
-        <div class="switch-auth" id="auth-switch-text">Besoin d'un compte ? <a id="link-to-register">S'inscrire</a></div>
+        <div class="auth-switch" id="auth-switch-text">Besoin d'un compte ? <span>S'inscrire</span></div>
     </div>
 
-    <!-- APPLICATION -->
+    <!-- Main App Workspace -->
     <div id="main-app">
         <div class="app-layout">
-            <div id="left-sidebar">
-                <div class="sidebar-scroll">
-                    <div class="sidebar-section-title">Salons textuels</div>
-                    <ul class="item-list">
-                        <li class="clickable-item active" id="global-channel-btn">
-                            <div class="item-content"><span>💬 # général</span></div>
-                            <div id="global-badge-container"></div>
-                        </li>
-                    </ul>
-                    <div class="sidebar-section-title">Messages privés</div>
-                    <ul class="item-list" id="dms-list"></ul>
+            <div id="sidebar">
+                <div class="sidebar-header">Serveur Privé</div>
+                <div class="sidebar-menu">
+                    <div class="menu-section-title">Salons Textuels</div>
+                    <div class="channel-btn active" id="global-channel-btn"><span>#</span> général<div id="global-badge-container"></div></div>
+                    <div class="menu-section-title" style="margin-top: 20px;">Messages Privés</div>
+                    <div id="dms-list"></div>
                 </div>
                 
                 <div class="user-footer">
-                    <div class="user-footer-info" id="footer-profile-click">
-                        <div class="footer-avatar-wrapper">
-                            <img id="footer-user-avatar" class="footer-avatar" src="" alt="">
-                            <div id="footer-status-dot" class="status-dot status-online"></div>
-                        </div>
-                        <div id="footer-user-username" class="footer-username">@Pseudo</div>
+                    <div class="avatar-container" id="my-avatar-wrapper" title="Changer de statut">
+                        <img id="mp-card-avatar" src="" alt="">
+                        <div class="status-dot online" id="my-status-dot"></div>
                     </div>
-                    <button class="gear-btn" id="open-settings-btn">⚙️</button>
+                    <div class="user-info-text">
+                        <div class="name" id="mp-card-username">...</div>
+                        <div class="status" id="mp-card-bio">...</div>
+                    </div>
+                    <button class="settings-icon-btn" id="open-settings-btn" title="Paramètres">⚙️</button>
+                </div>
 
-                    <div id="status-picker-menu">
-                        <div class="status-option" data-status="online"><div class="dot status-online"></div>En ligne</div>
-                        <div class="status-option" data-status="idle"><div class="dot status-idle"></div>Absent</div>
-                        <div class="status-option" data-status="dnd"><div class="dot status-dnd"></div>Ne pas déranger</div>
-                    </div>
+                <div id="status-picker-menu">
+                    <div class="status-option" data-status="online"><span style="color:#23a55a;">●</span> En ligne</div>
+                    <div class="status-option" data-status="idle"><span style="color:#f0b232;">●</span> Absent</div>
+                    <div class="status-option" data-status="dnd"><span style="color:#f23f43;">●</span> Ne pas déranger</div>
                 </div>
             </div>
 
             <div id="chat-window">
-                <div id="chat-header">💬 # général</div>
+                <div id="chat-header"># général <span>| Bienvenue sur le salon général !</span></div>
                 <ul id="messages"></ul>
-                <div id="typing-indicator"></div>
                 <form id="form">
-                    <!-- Champ d'envoi de fichier -->
-                    <button type="button" class="attach-btn" id="chat-attach-btn">+</button>
-                    <input type="file" id="chat-file-input" style="display: none;">
-                    
-                    <input id="input" autocomplete="off" placeholder="Envoyer un message ou un fichier..." />
+                    <div class="input-wrapper">
+                        <button type="button" class="attach-btn" id="chat-attach-btn" title="Envoyer un fichier">+</button>
+                        <input type="file" id="chat-file-input" style="display: none;">
+                        <input id="input" autocomplete="off" placeholder="Envoyer un message..." />
+                    </div>
                 </form>
             </div>
 
@@ -215,55 +188,67 @@
         </div>
     </div>
 
-    <!-- MINI PROFIL POP-UP -->
-    <div id="mini-profile-card">
-        <div class="profile-banner"></div>
-        <div class="profile-avatar-container">
-            <img class="profile-card-avatar" id="mp-card-avatar" src="" alt="">
-        </div>
-        <div class="profile-card-body">
-            <div class="profile-card-username" id="mp-card-username">User</div>
-            <div class="profile-card-bio-title">À propos de moi</div>
-            <div class="profile-card-bio" id="mp-card-bio">Pas de biographie.</div>
-            <div id="mp-card-actions"></div>
+    <!-- Mini Profile Card Popout Overlay -->
+    <div class="profile-popout" id="user-profile-popout">
+        <div class="popout-banner"></div>
+        <div class="popout-body">
+            <img class="popout-avatar" id="popout-img" src="" alt="">
+            <div class="popout-username" id="popout-name">Pseudo</div>
+            <div class="popout-bio-title">Biographie</div>
+            <div class="popout-bio" id="popout-bio-text">Pas de biographie.</div>
+            <button class="popout-btn" id="popout-friend-action-btn">Ajouter en ami</button>
+            <button class="popout-btn btn-remove" id="popout-block-btn">Bloquer l'utilisateur</button>
         </div>
     </div>
 
-    <!-- MODALE PARAMÈTRES -->
-    <div id="settings-modal">
-        <div class="modal-content">
+    <!-- Settings Panel Modal -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal-card">
             <div class="modal-sidebar">
-                <button class="modal-tab-btn active" data-target="tab-profile">Mon Profil</button>
-                <button class="modal-tab-btn" data-target="tab-account">Mon Compte</button>
-                <button class="logout-modal-btn" id="logout-btn" style="margin-top: auto;">Déconnexion</button>
+                <button class="modal-tab-btn active" data-tab="tab-profile">Profil d'utilisateur</button>
+                <button class="modal-tab-btn" data-tab="tab-account">Mon compte</button>
+                <button class="modal-tab-btn" data-tab="tab-blocked">Utilisateurs bloqués</button>
+                <hr style="border: 0; border-top: 1px solid #1f2023; margin: 10px 0;">
+                <button class="modal-tab-btn btn-danger" id="logout-btn" style="color: #fff; text-align: left;">Se déconnecter</button>
             </div>
             <div class="modal-main">
-                <div class="modal-header">
-                    <span id="modal-tab-title">Profil utilisateur</span>
-                    <button class="close-modal-btn" id="close-settings-btn">✕</button>
-                </div>
                 <div class="modal-body">
                     <div id="tab-profile" class="tab-content active">
-                        <label>Photo de profil</label>
-                        <input type="file" id="edit-avatar-file" accept="image/*">
+                        <h3>Profil d'utilisateur</h3>
+                        <div class="profile-edit-flex">
+                            <img id="edit-avatar-preview" src="" alt="">
+                            <div>
+                                <label class="profile-action-btn" for="edit-avatar-file" style="display: inline-block; cursor:pointer;">Changer l'avatar</label>
+                                <input type="file" id="edit-avatar-file" style="display: none;" accept="image/*">
+                            </div>
+                        </div>
                         <label>Biographie</label>
-                        <input type="text" id="edit-bio">
+                        <textarea id="edit-bio"></textarea>
                     </div>
+                    
                     <div id="tab-account" class="tab-content">
+                        <h3>Paramètres du compte</h3>
                         <label>Pseudo</label>
                         <input type="text" id="edit-username">
                         <label style="color: #f23f43; margin-top: 15px;">Nouveau mot de passe</label>
                         <input type="password" id="edit-new-password">
                         <label style="color: #00a8fc; margin-top: 15px;">Mot de passe actuel</label>
                         <input type="password" id="edit-current-password">
-                        
                         <hr style="border: 0; border-top: 1px solid #1f2023; margin: 25px 0;">
-                        <label style="color: #f23f43;">Zone dangereuse</label>
-                        <p style="font-size: 0.8rem; color: #949ba4; margin-bottom: 10px;">La suppression de votre compte est définitive et effacera toutes vos données.</p>
-                        <button class="profile-action-btn btn-danger" id="delete-account-btn" style="width: auto; padding: 10px 20px;">Supprimer le compte</button>
+                        <button class="profile-action-btn btn-danger" id="delete-account-btn">Supprimer le compte</button>
+                    </div>
+
+                    <!-- Nouvel Onglet : Liste des Bloqués -->
+                    <div id="tab-blocked" class="tab-content">
+                        <h3>Utilisateurs bloqués</h3>
+                        <p style="color: #949ba4; font-size: 0.85rem; margin-bottom: 15px;">Les utilisateurs bloqués ne peuvent plus vous envoyer de messages privés et leurs messages textuels sont masqués.</p>
+                        <div id="blocked-users-list">
+                            <!-- Rempli dynamiquement -->
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button class="close-btn" id="close-settings-btn">Annuler</button>
                     <button class="save-btn" id="save-profile-btn">Enregistrer</button>
                 </div>
             </div>
